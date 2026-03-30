@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getMentorMe, updateMentorMe, getMentorSessions, getChatMessages, sendChatMessage, getMentorActiveChats } from '../api/auth';
+import { getMentorMe, updateMentorMe, getMentorSessions, getChatMessages, sendChatMessage, getMentorActiveChats, endChatSession } from '../api/auth';
 
 function timeAgo(date) {
   const diff = Math.floor((Date.now() - new Date(date)) / 1000);
@@ -64,43 +64,48 @@ export default function MentorDashboard() {
     return () => clearInterval(t);
   }, [pollActiveChats]);
 
-  // Poll messages for open chat
+  // Poll messages for open chat — use a ref to avoid stale closure
+  const openChatRef = useRef(null);
+
   const pollChatMessages = useCallback(async () => {
-    if (!openChat) return;
+    const chat = openChatRef.current;
+    if (!chat) return;
     try {
       const since = lastMsgTime.current;
-      const res = await getChatMessages(openChat.sessionId, since);
+      const res = await getChatMessages(chat.sessionId, since);
       if (res.data.length > 0) {
-        const newMsgs = res.data.map(m => ({
-          _id: m._id,
-          from: m.from === 'mentor' ? 'sent' : 'recv',
-          text: m.text,
-          time: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          fromName: m.fromName,
-        }));
+        lastMsgTime.current = res.data[res.data.length - 1].createdAt;
         setChatMessages(prev => {
           const existingIds = new Set(prev.map(m => m._id).filter(Boolean));
-          const fresh = newMsgs.filter(m => !existingIds.has(m._id));
+          const fresh = res.data
+            .filter(m => !existingIds.has(m._id))
+            .map(m => ({
+              _id: m._id,
+              from: m.from === 'mentor' ? 'sent' : 'recv',
+              text: m.text,
+              time: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            }));
           return fresh.length > 0 ? [...prev, ...fresh] : prev;
         });
-        lastMsgTime.current = res.data[res.data.length - 1].createdAt;
       }
     } catch (e) { console.error(e); }
-  }, [openChat]);
+  }, []);
 
+  // Start polling once on mount
   useEffect(() => {
-    if (!openChat) return;
     pollRef.current = setInterval(pollChatMessages, 3000);
     return () => clearInterval(pollRef.current);
-  }, [openChat, pollChatMessages]);
+  }, [pollChatMessages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
   const openChatSession = async (sessionId, userName) => {
-    setOpenChat({ sessionId, userName });
-    lastMsgTime.current = null;
+    const chat = { sessionId, userName };
+    openChatRef.current  = chat;
+    lastMsgTime.current  = null;
+    setOpenChat(chat);
     setChatMessages([]);
     try {
       const res = await getChatMessages(sessionId, null);
@@ -109,7 +114,6 @@ export default function MentorDashboard() {
         from: m.from === 'mentor' ? 'sent' : 'recv',
         text: m.text,
         time: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        fromName: m.fromName,
       }));
       setChatMessages(msgs);
       if (res.data.length > 0) lastMsgTime.current = res.data[res.data.length - 1].createdAt;
@@ -117,13 +121,13 @@ export default function MentorDashboard() {
   };
 
   const sendReply = async () => {
-    if (!chatInput.trim() || !openChat) return;
+    const chat = openChatRef.current;
+    if (!chatInput.trim() || !chat) return;
     const text = chatInput.trim();
     setChatInput('');
-    // Optimistic
-    setChatMessages(m => [...m, { from: 'sent', text, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), fromName: profile?.name }]);
     try {
-      await sendChatMessage(openChat.sessionId, { text, from: 'mentor', fromName: profile?.name });
+      await sendChatMessage(chat.sessionId, { text, from: 'mentor', fromName: profile?.name });
+      await pollChatMessages(); // fetch immediately so reply shows up
     } catch (e) { console.error(e); }
   };
 
@@ -294,7 +298,9 @@ export default function MentorDashboard() {
                       cursor: 'pointer', color: 'var(--text)',
                     }}>
                     <div style={{ fontWeight: 600, fontSize: 13 }}>💬 Active Session</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>{sid.slice(0, 16)}...</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
+                      User: {sid.split('__')[0].slice(0, 10)}...
+                    </div>
                   </button>
                 ))
               )}
@@ -309,7 +315,19 @@ export default function MentorDashboard() {
                     <div style={{ fontWeight: 700, fontSize: 14 }}>User Session</div>
                     <div style={{ fontSize: 12, color: '#86efac' }}>🟢 Active</div>
                   </div>
-                  <button onClick={() => { setOpenChat(null); setChatMessages([]); }} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 20 }}>×</button>
+                  <button onClick={() => { openChatRef.current = null; setOpenChat(null); setChatMessages([]); }} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 20 }}>×</button>
+                  <button onClick={async () => {
+                    const chat = openChatRef.current;
+                    if (chat) {
+                      try { await endChatSession(chat.sessionId, { mentorName: profile?.name, escalated: false, duration: 0 }); } catch {}
+                    }
+                    openChatRef.current = null;
+                    setOpenChat(null);
+                    setChatMessages([]);
+                    setActiveChats(prev => prev.filter(s => s !== chat?.sessionId));
+                  }} style={{ background: 'rgba(244,63,94,0.1)', border: '1px solid rgba(244,63,94,0.3)', color: '#fca5a5', padding: '5px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                    End Session
+                  </button>
                 </div>
                 <div className="chat-messages" style={{ flex: 1, minHeight: 300 }}>
                   {chatMessages.length === 0 && (
