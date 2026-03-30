@@ -42,7 +42,8 @@ export default function AuthScreen() {
     try {
       const res = await loginUser({ email: siEmail, password: siPassword });
       login(res.data.user, res.data.token);
-      navigate('/home', { replace: true });
+      const role = res.data.user?.role;
+      navigate(role === 'mentor' || role === 'admin' ? '/dashboard' : '/home', { replace: true });
     } catch (err) {
       setSiError('⚠ ' + (err.response?.data?.message || 'Login failed'));
     } finally {
@@ -56,7 +57,7 @@ export default function AuthScreen() {
     if (!suConsent) { setSuError('⚠ Please accept the privacy policy.'); return; }
     setSuLoading(true);
     try {
-      const res = await registerUser({ name: suName, email: suEmail, password: suPassword, age: parseInt(suAge), role: suRole });
+      const res = await registerUser({ name: suName, email: suEmail, password: suPassword, age: suAge ? parseInt(suAge) : 0, role: suRole });
       login(res.data.user, res.data.token);
       navigate('/home', { replace: true });
     } catch (err) {
@@ -72,7 +73,7 @@ export default function AuthScreen() {
       <div className="auth-left">
         <div className="auth-brand">
           <div className="auth-brand-icon">🧠</div>
-          <span className="auth-brand-name">Mind<span className="brand-accent">Bridge</span></span>
+          <span className="auth-brand-name">Sah<span className="brand-accent">ara</span></span>
         </div>
         <h1 className="auth-tagline">You Are <span className="gradient-text">Never</span><br />Alone Here.</h1>
         <p className="auth-desc">A safe, stepped-care mental health ecosystem — connecting youth with community peers, trained volunteers, and licensed crisis therapists.</p>

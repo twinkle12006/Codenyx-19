@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Use relative URL — CRA proxy handles /api -> localhost:5000 in dev
 // In production, set REACT_APP_API_URL env var to your backend URL
-const BASE = process.env.REACT_APP_API_URL || '';
+const BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 const API = axios.create({ baseURL: `${BASE}/api` });
 
@@ -19,7 +19,12 @@ export const registerUser    = (data)      => API.post('/auth/register', data);
 
 export const getVents        = ()          => API.get('/vents');
 export const postVent        = (data)      => API.post('/vents', data);
-export const reactToVent     = (id, emoji) => API.post(`/vents/${id}/react`, { emoji });
+export const likeVent        = (id)        => API.post(`/vents/${id}/like`);
+export const dislikeVent     = (id)        => API.post(`/vents/${id}/dislike`);
+export const commentVent     = (id, text)  => API.post(`/vents/${id}/comment`, { text });
+export const deleteComment   = (id, cid)   => API.delete(`/vents/${id}/comment/${cid}`);
+export const likeComment     = (id, cid)   => API.post(`/vents/${id}/comment/${cid}/like`);
+export const dislikeComment  = (id, cid)   => API.post(`/vents/${id}/comment/${cid}/dislike`);
 
 export const logMood         = (data)      => API.post('/mood', data);
 export const getMoodLogs     = ()          => API.get('/mood/me');

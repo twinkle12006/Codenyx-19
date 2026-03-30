@@ -58,7 +58,7 @@ mongoose.connect(process.env.MONGO_URI).then(async () => {
 
   // Vents
   await Vent.deleteMany({});
-  await Vent.insertMany(seedVents.map(v => ({ ...v, reactions: new Map([['🤍', 0], ['💜', 0], ['🌱', 0]]) })));
+  await Vent.insertMany(seedVents);
 
   console.log('Clinics and vents seeded');
   process.exit(0);

@@ -1,11 +1,25 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { SocketProvider } from './context/SocketContext';
 import AuthScreen from './components/AuthScreen';
 import Dashboard from './components/Dashboard';
-import AdminDashboard from './components/AdminDashboard';
 import MentorDashboard from './components/MentorDashboard';
+import AdminDashboard from './components/AdminDashboard';
 
+function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  return user ? children : <Navigate to="/login" replace />;
+}
+
+function PublicRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  return user ? <Navigate to="/home" replace /> : children;
+}
+
+// Routes to the correct dashboard based on role
 function RoleRouter() {
   const { user, loading } = useAuth();
   if (loading) return null;
@@ -15,10 +29,9 @@ function RoleRouter() {
   return <Dashboard />;
 }
 
-function PublicRoute({ children }) {
-  const { user, loading } = useAuth();
-  if (loading) return null;
-  return user ? <Navigate to="/home" replace /> : children;
+function AppWithSocket({ children }) {
+  const { token } = useAuth();
+  return <SocketProvider token={token}>{children}</SocketProvider>;
 }
 
 export default function App() {
@@ -30,14 +43,17 @@ export default function App() {
         <div className="orb orb-3"></div>
         <div className="orb orb-4"></div>
       </div>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<PublicRoute><AuthScreen /></PublicRoute>} />
-          <Route path="/:section" element={<RoleRouter />} />
-          <Route path="/" element={<Navigate to="/home" replace />} />
-          <Route path="*" element={<Navigate to="/home" replace />} />
-        </Routes>
-      </BrowserRouter>
+      <AppWithSocket>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<PublicRoute><AuthScreen /></PublicRoute>} />
+            {/* Role-based: mentor/admin get their own UI, users get Dashboard */}
+            <Route path="/:section" element={<ProtectedRoute><RoleRouter /></ProtectedRoute>} />
+            <Route path="/" element={<Navigate to="/home" replace />} />
+            <Route path="*" element={<Navigate to="/home" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AppWithSocket>
     </AuthProvider>
   );
 }

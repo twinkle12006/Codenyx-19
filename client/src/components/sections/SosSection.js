@@ -74,47 +74,6 @@ export default function SosSection() {
         </div>
       </div>
 
-      <div className="map-section">
-        <div className="map-header">
-          <h2 className="section-title" style={{ margin: 0 }}>Live Clinic Availability</h2>
-          <div className="map-legend">
-            <span className="legend-dot open"></span> Emergency Slot Open &nbsp;
-            <span className="legend-dot wait"></span> Waitlist &nbsp;
-            <span className="legend-dot full"></span> Full
-          </div>
-        </div>
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>Loading clinics...</div>
-        ) : (
-          <div className="map-container">
-            <div className="city-map">
-              {clinics.map(c => (
-                <div key={c._id} className="map-pin" style={{ left: c.x + '%', top: c.y + '%' }} onClick={() => setSelected(c._id)}>
-                  <div className={`pin-dot ${c.status}`}></div>
-                  <div className="pin-label">{c.name.split(' ')[0]}</div>
-                </div>
-              ))}
-            </div>
-            <div className="clinic-list">
-              {clinics.map(c => (
-                <div key={c._id} className={`clinic-card${selected === c._id ? ' selected' : ''}`} onClick={() => setSelected(c._id)}>
-                  <div className="cc-header">
-                    <div className="cc-name">{c.name}</div>
-                    <div className={`cc-status ${c.status}`}>
-                      {c.status === 'open' ? '● Emergency Slot' : c.status === 'wait' ? '● Waitlist' : '● Full'}
-                    </div>
-                  </div>
-                  <div className="cc-detail">📍 {c.address} · {c.distance}</div>
-                  <div className="cc-detail">⏱ Wait time: {c.wait}{c.slots > 0 ? ` · ${c.slots} slot${c.slots > 1 ? 's' : ''} open` : ''}</div>
-                  <button className="cc-btn" onClick={e => handleBook(c._id, e)} disabled={c.status === 'full' || booked[c._id]}>
-                    {booked[c._id] ? '✅ Booked' : c.status === 'open' ? '⚡ Book Emergency Slot' : c.status === 'wait' ? '📋 Join Waitlist' : '✗ Currently Full'}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
     </section>
   );
 }

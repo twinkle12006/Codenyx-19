@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getMentorMe, updateMentorMe, getMentorSessions, getChatMessages, sendChatMessage, getMentorActiveChats, endChatSession } from '../api/auth';
+import { useSocket } from '../context/SocketContext';
+import { getMentorMe, updateMentorMe, getMentorSessions, getMentorActiveChats, getVents, commentVent, likeVent, dislikeVent, likeComment, dislikeComment, deleteComment } from '../api/auth';
 
 function timeAgo(date) {
   const diff = Math.floor((Date.now() - new Date(date)) / 1000);
@@ -15,19 +16,21 @@ const STATUS_LABELS  = { available: '🟢 Available', away: '🟡 Away' };
 
 export default function MentorDashboard() {
   const { user, logout } = useAuth();
+  const { socket, connected } = useSocket();
   const [tab, setTab]           = useState('overview');
   const [profile, setProfile]   = useState(null);
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading]   = useState(true);
 
-  // Active live chats
-  const [activeChats, setActiveChats]   = useState([]); // sessionIds with recent messages
-  const [openChat, setOpenChat]         = useState(null); // { sessionId, userName }
+  // Active live chats via socket
+  const [activeChats, setActiveChats]   = useState([]); // sessionIds
+  const [openChat, setOpenChat]         = useState(null);
+  const openChatRef                     = useRef(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput]       = useState('');
-  const lastMsgTime = useRef(null);
-  const messagesEndRef = useRef(null);
-  const pollRef = useRef(null);
+  const [userTyping, setUserTyping]     = useState(false);
+  const typingTimerRef                  = useRef(null);
+  const messagesEndRef                  = useRef(null);
 
   // Edit state
   const [editBio, setEditBio]               = useState('');
@@ -50,7 +53,7 @@ export default function MentorDashboard() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Poll for active chats (sessions with messages in last 30 min)
+  // Poll active chats (still needed to discover new sessions)
   const pollActiveChats = useCallback(async () => {
     try {
       const res = await getMentorActiveChats();
@@ -64,79 +67,162 @@ export default function MentorDashboard() {
     return () => clearInterval(t);
   }, [pollActiveChats]);
 
-  // Poll messages for open chat — use a ref to avoid stale closure
-  const openChatRef = useRef(null);
-
-  const pollChatMessages = useCallback(async () => {
-    const chat = openChatRef.current;
-    if (!chat) return;
-    try {
-      const since = lastMsgTime.current;
-      const res = await getChatMessages(chat.sessionId, since);
-      if (res.data.length > 0) {
-        lastMsgTime.current = res.data[res.data.length - 1].createdAt;
-        setChatMessages(prev => {
-          const existingIds = new Set(prev.map(m => m._id).filter(Boolean));
-          const fresh = res.data
-            .filter(m => !existingIds.has(m._id))
-            .map(m => ({
-              _id: m._id,
-              from: m.from === 'mentor' ? 'sent' : 'recv',
-              text: m.text,
-              time: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            }));
-          return fresh.length > 0 ? [...prev, ...fresh] : prev;
-        });
-      }
-    } catch (e) { console.error(e); }
-  }, []);
-
-  // Start polling once on mount
+  // Socket event listeners
   useEffect(() => {
-    pollRef.current = setInterval(pollChatMessages, 3000);
-    return () => clearInterval(pollRef.current);
-  }, [pollChatMessages]);
+    if (!socket) return;
+
+    const onMessage = (msg) => {
+      const chat = openChatRef.current;
+      if (!chat || msg.sessionId !== chat.sessionId) {
+        // New message in a session we're not viewing — add to active list
+        setActiveChats(prev => prev.includes(msg.sessionId) ? prev : [...prev, msg.sessionId]);
+        return;
+      }
+      setChatMessages(prev => {
+        if (prev.find(m => m._id === msg._id)) return prev;
+        return [...prev, {
+          _id:  msg._id,
+          from: msg.from === 'mentor' ? 'sent' : 'recv',
+          text: msg.text,
+          time: new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }];
+      });
+    };
+
+    const onTyping = ({ name, isTyping }) => {
+      setUserTyping(isTyping);
+      if (isTyping) {
+        clearTimeout(typingTimerRef.current);
+        typingTimerRef.current = setTimeout(() => setUserTyping(false), 3000);
+      }
+    };
+
+    const onSessionEnded = () => {
+      setChatMessages(prev => [...prev, {
+        _id: 'ended', from: 'recv',
+        text: '✅ Session ended by the user.',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }]);
+      if (openChatRef.current) {
+        setActiveChats(prev => prev.filter(s => s !== openChatRef.current.sessionId));
+      }
+    };
+
+    socket.on('new_message',   onMessage);
+    socket.on('typing',        onTyping);
+    socket.on('session_ended', onSessionEnded);
+
+    return () => {
+      socket.off('new_message',   onMessage);
+      socket.off('typing',        onTyping);
+      socket.off('session_ended', onSessionEnded);
+    };
+  }, [socket]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatMessages]);
+  }, [chatMessages, userTyping]);
 
-  const openChatSession = async (sessionId, userName) => {
-    const chat = { sessionId, userName };
-    openChatRef.current  = chat;
-    lastMsgTime.current  = null;
+  const openChatSession = (sessionId) => {
+    if (!socket) return;
+    const chat = { sessionId };
+    openChatRef.current = chat;
     setOpenChat(chat);
     setChatMessages([]);
-    try {
-      const res = await getChatMessages(sessionId, null);
-      const msgs = res.data.map(m => ({
-        _id: m._id,
-        from: m.from === 'mentor' ? 'sent' : 'recv',
-        text: m.text,
-        time: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      }));
-      setChatMessages(msgs);
-      if (res.data.length > 0) lastMsgTime.current = res.data[res.data.length - 1].createdAt;
-    } catch (e) { console.error(e); }
+    socket.emit('join_session', sessionId);
   };
 
-  const sendReply = async () => {
+  const closeChatSession = () => {
+    if (openChat && socket) socket.emit('leave_session', openChat.sessionId);
+    openChatRef.current = null;
+    setOpenChat(null);
+    setChatMessages([]);
+  };
+
+  const endSession = () => {
     const chat = openChatRef.current;
-    if (!chatInput.trim() || !chat) return;
+    if (!chat || !socket) return;
+    socket.emit('end_session', {
+      sessionId:  chat.sessionId,
+      mentorName: profile?.name,
+      escalated:  false,
+      duration:   0,
+    });
+    setActiveChats(prev => prev.filter(s => s !== chat.sessionId));
+    closeChatSession();
+  };
+
+  const sendReply = () => {
+    const chat = openChatRef.current;
+    if (!chatInput.trim() || !chat || !socket) return;
     const text = chatInput.trim();
     setChatInput('');
-    try {
-      await sendChatMessage(chat.sessionId, { text, from: 'mentor', fromName: profile?.name });
-      await pollChatMessages(); // fetch immediately so reply shows up
-    } catch (e) { console.error(e); }
+    socket.emit('send_message', {
+      sessionId: chat.sessionId,
+      text,
+      from:      'mentor',
+      fromName:  profile?.name,
+    });
+    socket.emit('typing', { sessionId: chat.sessionId, isTyping: false });
   };
 
+  const handleReplyInput = (e) => {
+    setChatInput(e.target.value);
+    const chat = openChatRef.current;
+    if (!chat || !socket) return;
+    socket.emit('typing', { sessionId: chat.sessionId, isTyping: true });
+    clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = setTimeout(() => {
+      socket.emit('typing', { sessionId: chat.sessionId, isTyping: false });
+    }, 2000);
+  };
+
+  // Community tab state
+  const [communityVents, setCommunityVents] = useState([]);
+  const [communityLoading, setCommunityLoading] = useState(false);
+  const [commentInputs, setCommentInputs] = useState({}); // ventId -> text
+  const [submittingComment, setSubmittingComment] = useState({});
+
+  const fetchCommunity = useCallback(async () => {
+    setCommunityLoading(true);
+    try { const r = await getVents(); setCommunityVents(r.data); }
+    catch (e) { console.error(e); }
+    finally { setCommunityLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    if (tab === 'community') fetchCommunity();
+  }, [tab, fetchCommunity]);
+
+  const handleMentorComment = async (ventId) => {
+    const text = commentInputs[ventId]?.trim();
+    if (!text) return;
+    setSubmittingComment(s => ({ ...s, [ventId]: true }));
+    try {
+      const r = await commentVent(ventId, text);
+      setCommunityVents(v => v.map(x => x._id === ventId ? r.data : x));
+      setCommentInputs(s => ({ ...s, [ventId]: '' }));
+    } catch (e) { console.error(e); }
+    finally { setSubmittingComment(s => ({ ...s, [ventId]: false })); }
+  };
+
+  const handleMentorLike    = async (id) => { try { const r = await likeVent(id);    setCommunityVents(v => v.map(x => x._id === id ? r.data : x)); } catch {} };
+  const handleMentorDislike = async (id) => { try { const r = await dislikeVent(id); setCommunityVents(v => v.map(x => x._id === id ? r.data : x)); } catch {} };
+  const handleMentorLikeComment    = async (vid, cid) => { try { const r = await likeComment(vid, cid);    setCommunityVents(v => v.map(x => x._id === vid ? r.data : x)); } catch {} };
+  const handleMentorDislikeComment = async (vid, cid) => { try { const r = await dislikeComment(vid, cid); setCommunityVents(v => v.map(x => x._id === vid ? r.data : x)); } catch {} };
+  const handleMentorDeleteComment  = async (vid, cid) => { try { const r = await deleteComment(vid, cid);  setCommunityVents(v => v.map(x => x._id === vid ? r.data : x)); } catch {} };
+
+  const moodEmoji = { anxious: '😰', sad: '😢', overwhelmed: '😵', hopeful: '🌱', angry: '😤', numb: '😶' };
+  function timeAgoShort(date) {
+    const diff = Math.floor((Date.now() - new Date(date)) / 1000);
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
   const setStatus = async (s) => {
     setEditStatus(s);
-    try {
-      const r = await updateMentorMe({ status: s });
-      setProfile(r.data);
-    } catch (e) { console.error(e); }
+    try { const r = await updateMentorMe({ status: s }); setProfile(r.data); } catch (e) { console.error(e); }
   };
 
   const saveProfile = async () => {
@@ -166,7 +252,6 @@ export default function MentorDashboard() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)' }}>
-
       {/* Navbar */}
       <nav className="navbar">
         <div className="nav-brand">
@@ -224,7 +309,7 @@ export default function MentorDashboard() {
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 4, marginBottom: 28, borderBottom: '1px solid var(--border)' }}>
-          {[['overview','📊 Overview'], ['live','💬 Live Chat'], ['sessions','📋 Sessions'], ['profile','⚙️ Profile']].map(([key, label]) => (
+          {[['overview','📊 Overview'], ['community','🌊 Community'], ['live','💬 Live Chat'], ['sessions','📋 Sessions'], ['profile','⚙️ Profile']].map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)} style={{
               padding: '10px 20px', background: 'none', border: 'none', cursor: 'pointer',
               fontSize: 14, fontWeight: 600, fontFamily: 'inherit',
@@ -275,12 +360,150 @@ export default function MentorDashboard() {
           </div>
         )}
 
+        {/* Community Tab */}
+        {tab === 'community' && (
+          <div>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+              <div>
+                <div style={{ fontWeight:700, fontSize:18 }}>Community Posts</div>
+                <div style={{ fontSize:13, color:'var(--text-muted)', marginTop:2 }}>Browse anonymous posts and offer your support as a trained volunteer. Your replies show a ✓ Volunteer badge.</div>
+              </div>
+              <button onClick={fetchCommunity} style={{ background:'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.3)', color:'#a5b4fc', padding:'7px 16px', borderRadius:8, cursor:'pointer', fontSize:13, fontWeight:600 }}>
+                🔄 Refresh
+              </button>
+            </div>
+
+            {communityLoading ? (
+              <div style={{ textAlign:'center', padding:'60px', color:'var(--text-muted)' }}>Loading community posts...</div>
+            ) : communityVents.length === 0 ? (
+              <div style={{ textAlign:'center', padding:'60px', color:'var(--text-muted)' }}>No posts yet.</div>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+                {communityVents.map(v => (
+                  <div key={v._id} style={{ background:'var(--surface)', border:`1px solid ${v.distress > 0.7 ? 'rgba(139,92,246,0.4)' : 'var(--border)'}`, borderRadius:16, padding:20 }}>
+                    {/* Post header */}
+                    <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
+                      <div style={{ width:36, height:36, borderRadius:'50%', background:v.color+'22', color:v.color, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:16 }}>
+                        {v.anon.charAt(0)}
+                      </div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontWeight:600, fontSize:14 }}>{v.anon}</div>
+                        <div style={{ fontSize:11, color:'var(--text-dim)' }}>{timeAgoShort(v.createdAt)}</div>
+                      </div>
+                      <span style={{ fontSize:12, padding:'3px 10px', borderRadius:20, fontWeight:600,
+                        background:`rgba(99,102,241,0.1)`, color:'#a5b4fc', border:'1px solid rgba(99,102,241,0.2)' }}>
+                        {moodEmoji[v.mood] || '😶'} {v.mood}
+                      </span>
+                      {v.distress > 0.7 && (
+                        <span style={{ fontSize:11, padding:'3px 8px', borderRadius:20, background:'rgba(139,92,246,0.2)', color:'#c4b5fd', border:'1px solid rgba(139,92,246,0.3)', fontWeight:600 }}>
+                          🤖 High distress
+                        </span>
+                      )}
+                    </div>
+
+                    <p style={{ fontSize:14, lineHeight:1.7, color:'var(--text)', marginBottom:14 }}>{v.text}</p>
+
+                    {/* Post stats */}
+                    <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
+                      <button onClick={() => handleMentorLike(v._id)} style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 10px', borderRadius:20, fontSize:12, cursor:'pointer',
+                        background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', color:'var(--text-dim)' }}>
+                        👍 {v.likes || 0}
+                      </button>
+                      <button onClick={() => handleMentorDislike(v._id)} style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 10px', borderRadius:20, fontSize:12, cursor:'pointer',
+                        background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', color:'var(--text-dim)' }}>
+                        👎 {v.dislikes || 0}
+                      </button>
+                      <span style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 10px', borderRadius:20, fontSize:12,
+                        background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', color:'var(--text-dim)' }}>
+                        💬 {v.comments?.length || 0} comments
+                      </span>
+                      {v.mentorReplies > 0 && (
+                        <span style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 10px', borderRadius:20, fontSize:12,
+                          background:'rgba(99,102,241,0.12)', border:'1px solid rgba(99,102,241,0.3)', color:'#a5b4fc', fontWeight:600 }}>
+                          🌱 {v.mentorReplies} volunteer {v.mentorReplies === 1 ? 'reply' : 'replies'}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Existing comments */}
+                    {v.comments?.length > 0 && (
+                      <div style={{ marginBottom:14 }}>
+                        {v.comments.map(c => (
+                          <div key={c._id} style={{ display:'flex', gap:8, marginBottom:8, padding:'8px 12px', borderRadius:10,
+                            background: c.isMentor ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.03)',
+                            border:`1px solid ${c.isMentor ? 'rgba(99,102,241,0.2)' : 'var(--border)'}` }}>
+                            <div style={{ width:26, height:26, borderRadius:'50%', flexShrink:0,
+                              background: c.isMentor ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : 'rgba(255,255,255,0.1)',
+                              display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, color:'white' }}>
+                              {c.userName.charAt(0).toUpperCase()}
+                            </div>
+                            <div style={{ flex:1 }}>
+                              <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:2 }}>
+                                <span style={{ fontSize:12, fontWeight:600 }}>{c.isMentor ? 'Anonymous' : c.userName}</span>
+                                {c.isMentor && (
+                                  <span style={{ fontSize:10, padding:'1px 5px', borderRadius:20, fontWeight:700,
+                                    background:'rgba(99,102,241,0.2)', color:'#a5b4fc', border:'1px solid rgba(99,102,241,0.3)' }}>
+                                    ✓ Volunteer
+                                  </span>
+                                )}
+                                <span style={{ fontSize:10, color:'var(--text-dim)', marginLeft:'auto' }}>{timeAgoShort(c.createdAt)}</span>
+                                {c.userId === profile?._id?.toString() && (
+                                  <button onClick={() => handleMentorDeleteComment(v._id, c._id)}
+                                    style={{ background:'none', border:'none', color:'var(--text-dim)', cursor:'pointer', fontSize:11 }}>×</button>
+                                )}
+                              </div>
+                              <div style={{ fontSize:12, color:'var(--text-muted)', lineHeight:1.5 }}>{c.text}</div>
+                              {/* Comment like/dislike */}
+                              <div style={{ display:'flex', gap:6, marginTop:4 }}>
+                                <button onClick={() => handleMentorLikeComment(v._id, c._id)}
+                                  style={{ display:'flex', alignItems:'center', gap:3, padding:'2px 7px', borderRadius:20, fontSize:10, cursor:'pointer',
+                                    background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', color:'var(--text-dim)' }}>
+                                  👍 {c.likes || 0}
+                                </button>
+                                <button onClick={() => handleMentorDislikeComment(v._id, c._id)}
+                                  style={{ display:'flex', alignItems:'center', gap:3, padding:'2px 7px', borderRadius:20, fontSize:10, cursor:'pointer',
+                                    background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', color:'var(--text-dim)' }}>
+                                  👎 {c.dislikes || 0}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Mentor reply input */}
+                    <div style={{ display:'flex', gap:8 }}>
+                      <input type="text" className="chat-input"
+                        placeholder="Reply as a volunteer — your expertise helps 💜"
+                        value={commentInputs[v._id] || ''}
+                        onChange={e => setCommentInputs(s => ({ ...s, [v._id]: e.target.value }))}
+                        onKeyUp={e => e.key === 'Enter' && handleMentorComment(v._id)}
+                        style={{ flex:1, borderRadius:20, padding:'8px 16px', fontSize:13 }}
+                        maxLength={500} />
+                      <button className="send-btn" onClick={() => handleMentorComment(v._id)}
+                        disabled={submittingComment[v._id] || !commentInputs[v._id]?.trim()}>
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Live Chat Tab */}
         {tab === 'live' && (
           <div style={{ display: 'grid', gridTemplateColumns: openChat ? '280px 1fr' : '1fr', gap: 20, minHeight: 500 }}>
             {/* Session list */}
             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 20 }}>
-              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16 }}>Active Sessions</div>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16 }}>
+                Active Sessions
+                <span style={{ marginLeft: 8, fontSize: 11, padding: '2px 8px', borderRadius: 20, background: connected ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)', color: connected ? '#86efac' : '#fcd34d', border: `1px solid ${connected ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.3)'}` }}>
+                  {connected ? '🟢 Connected' : '⏳ Connecting...'}
+                </span>
+              </div>
               {activeChats.length === 0 ? (
                 <div style={{ color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.6 }}>
                   No active chats right now.<br /><br />
@@ -290,7 +513,7 @@ export default function MentorDashboard() {
                 </div>
               ) : (
                 activeChats.map(sid => (
-                  <button key={sid} onClick={() => openChatSession(sid, 'User')}
+                  <button key={sid} onClick={() => openChatSession(sid)}
                     style={{
                       width: '100%', textAlign: 'left', padding: '12px 14px', borderRadius: 10, marginBottom: 8,
                       background: openChat?.sessionId === sid ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)',
@@ -315,17 +538,8 @@ export default function MentorDashboard() {
                     <div style={{ fontWeight: 700, fontSize: 14 }}>User Session</div>
                     <div style={{ fontSize: 12, color: '#86efac' }}>🟢 Active</div>
                   </div>
-                  <button onClick={() => { openChatRef.current = null; setOpenChat(null); setChatMessages([]); }} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 20 }}>×</button>
-                  <button onClick={async () => {
-                    const chat = openChatRef.current;
-                    if (chat) {
-                      try { await endChatSession(chat.sessionId, { mentorName: profile?.name, escalated: false, duration: 0 }); } catch {}
-                    }
-                    openChatRef.current = null;
-                    setOpenChat(null);
-                    setChatMessages([]);
-                    setActiveChats(prev => prev.filter(s => s !== chat?.sessionId));
-                  }} style={{ background: 'rgba(244,63,94,0.1)', border: '1px solid rgba(244,63,94,0.3)', color: '#fca5a5', padding: '5px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                  <button onClick={closeChatSession} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 20 }}>×</button>
+                  <button onClick={endSession} style={{ background: 'rgba(244,63,94,0.1)', border: '1px solid rgba(244,63,94,0.3)', color: '#fca5a5', padding: '5px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
                     End Session
                   </button>
                 </div>
@@ -339,11 +553,17 @@ export default function MentorDashboard() {
                       <div className="msg-time">{m.time}</div>
                     </div>
                   ))}
+                  {userTyping && (
+                    <div className="chat-typing">
+                      <div className="typing-bubble"><span></span><span></span><span></span></div>
+                      <small>User is typing...</small>
+                    </div>
+                  )}
                   <div ref={messagesEndRef} />
                 </div>
                 <div className="chat-input-area" style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
                   <input className="chat-input" placeholder="Type your reply..."
-                    value={chatInput} onChange={e => setChatInput(e.target.value)}
+                    value={chatInput} onChange={handleReplyInput}
                     onKeyUp={e => e.key === 'Enter' && sendReply()} />
                   <button className="send-btn" onClick={sendReply}>
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>

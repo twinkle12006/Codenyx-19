@@ -75,11 +75,11 @@ export default function Dashboard() {
       <nav className="navbar">
         <div className="nav-brand" onClick={() => navTo('home')} style={{ cursor: 'pointer' }}>
           <div className="brand-icon">🧠</div>
-          <span className="brand-name">Mind<span className="brand-accent">Bridge</span></span>
+          <span className="brand-name">Sah<span className="brand-accent">ara</span></span>
         </div>
 
         <div className="nav-links" id="navLinks">
-          {[['home','Home'],['vent','Vent Mode'],['help','I Need Help'],['sos','🆘 SOS'],['card','💳 Health Card'],['journal','📔 Journal']].map(([key, label]) => (
+          {[['home','Home'],['vent','🌊 Community'],['help','I Need Help'],['sos','🆘 SOS'],['card','💳 Health Card']].map(([key, label]) => (
             <button key={key}
               className={`nav-btn${activeSection === key ? ' active' : ''}${key === 'sos' ? ' sos-nav-btn' : ''}`}
               onClick={e => { e.stopPropagation(); navTo(key); }}>
@@ -171,7 +171,7 @@ export default function Dashboard() {
         {activeSection === 'help'    && <HelpSection />}
         {activeSection === 'sos'     && <SosSection />}
         {activeSection === 'card'    && <CardSection user={user} />}
-        {activeSection === 'journal' && <JournalSection user={user} />}
+        {/* {activeSection === 'journal' && <JournalSection user={user} />} */}
       </main>
     </>
   );
