@@ -2,9 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { getStats, logMood, getTodayMoods } from '../../api/auth';
 
 const SLOTS = [
-  { key: 'morning',   label: 'Morning Check-in',   icon: '🌅', hours: [5, 11],  prompt: 'How did you wake up feeling today?',    sub: 'Starting the day with awareness sets a positive tone.',    color: '#f59e0b' },
-  { key: 'afternoon', label: 'Afternoon Check-in',  icon: '☀️', hours: [12, 17], prompt: 'How are you holding up mid-day?',        sub: 'A quick check-in helps you catch stress before it builds.', color: '#6366f1' },
-  { key: 'evening',   label: 'Evening Reflection',  icon: '🌙', hours: [18, 23], prompt: 'How did today treat you overall?',       sub: 'Reflecting at night helps you process and wind down.',      color: '#8b5cf6' },
+  { key: 'morning',   label: 'Morning Check-in',  icon: '🌅', hours: [5, 11],  prompt: 'How did you wake up feeling today?',  sub: 'Starting the day with awareness sets a positive tone.',    color: '#f59e0b' },
+  { key: 'afternoon', label: 'Afternoon Check-in', icon: '☀️', hours: [12, 17], prompt: 'How are you holding up mid-day?',      sub: 'A quick check-in helps you catch stress before it builds.', color: '#6366f1' },
+  { key: 'evening',   label: 'Evening Reflection', icon: '🌙', hours: [18, 23], prompt: 'How did today treat you overall?',     sub: 'Reflecting at night helps you process and wind down.',      color: '#8b5cf6' },
 ];
 
 const MOOD_OPTIONS = [
@@ -15,10 +15,9 @@ const MOOD_OPTIONS = [
   { score: 5, emoji: '😄', label: 'Great' },
 ];
 
-// midnight (0-4) counts as late evening so users can still log after midnight
 function getCurrentSlot() {
   const h = new Date().getHours();
-  if (h >= 0 && h < 5) return SLOTS[2]; // treat as evening
+  if (h >= 0 && h < 5) return SLOTS[2]; // midnight counts as evening
   return SLOTS.find(s => h >= s.hours[0] && h <= s.hours[1]) || null;
 }
 
@@ -26,9 +25,7 @@ function slotTimeLabel(key) {
   return { morning: '5 AM – 12 PM', afternoon: '12 PM – 6 PM', evening: '6 PM – 12 AM' }[key] || '';
 }
 
-export default function HomeSection({ navTo, user }) {
-  const isKid = user && user.age < 15;
-
+export default function HomeSection({ navTo }) {
   const [stats, setStats]               = useState({ users: 0, volunteers: 0, slots: 0, ventsToday: 0 });
   const [loadingStats, setLoadingStats] = useState(true);
   const [todayLogs, setTodayLogs]       = useState([]);
@@ -38,7 +35,7 @@ export default function HomeSection({ navTo, user }) {
   const [note, setNote]                 = useState('');
   const [submitting, setSubmitting]     = useState(false);
   const [justLogged, setJustLogged]     = useState(null);
-  const [manualSlot, setManualSlot]     = useState(null); // user-forced slot override
+  const [manualSlot, setManualSlot]     = useState(null);
 
   const fetchTodayMoods = useCallback(async () => {
     try {
@@ -50,7 +47,6 @@ export default function HomeSection({ navTo, user }) {
 
   useEffect(() => { fetchTodayMoods(); }, [fetchTodayMoods]);
 
-  // Determine active slot from time OR manual override
   useEffect(() => {
     if (loadingMood) return;
     const slot = manualSlot || getCurrentSlot();
@@ -101,49 +97,27 @@ export default function HomeSection({ navTo, user }) {
     return s.hours[0] > h && !todayLogs.find(l => l.slot === s.key);
   });
 
-  // Kids mode: simpler prompts
-  const kidsPrompts = {
-    morning:   'Good morning! How are you feeling right now? 🌈',
-    afternoon: 'Hey! How is your day going so far? ⭐',
-    evening:   'Almost bedtime! How was your day? 🌙',
-  };
-
   return (
     <section className="section active" id="section-home">
-
-      {/* Kids mode banner */}
-      {isKid && (
-        <div style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(245,158,11,0.1))', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 16, padding: '16px 24px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 14 }}>
-          <span style={{ fontSize: 32 }}>🌈</span>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 16 }}>Welcome, {user?.name?.split(' ')[0]}! This is your safe space.</div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>You can share how you feel, talk to someone, or just read what others are going through. You are never alone. 💜</div>
-          </div>
-        </div>
-      )}
 
       {/* Hero */}
       <div className="hero">
         <div className="hero-content">
           <div className="hero-badge">🌱 NGO Mental Health Initiative</div>
-          <h1 className="hero-title">
-            {isKid ? <>Hi {user?.name?.split(' ')[0]}! <span className="gradient-text">You Matter</span> 💜</> : <>You Are <span className="gradient-text">Never</span><br />Alone Here</>}
-          </h1>
+          <h1 className="hero-title">You Are <span className="gradient-text">Never</span><br />Alone Here</h1>
           <p className="hero-subtitle">
-            {isKid
-              ? 'MindBridge is a safe place where you can share your feelings, talk to a friendly helper, or just read stories from others who feel the same way.'
-              : 'MindBridge connects youth with the right level of support — from community peers to trained volunteers to licensed crisis therapists.'}
+            MindBridge connects youth with the right level of support — from community peers to trained volunteers to licensed crisis therapists.
           </p>
           <div className="hero-actions">
-            <button className="btn btn-primary" onClick={() => navTo('vent')}>{isKid ? '💬 Share My Feelings' : 'Start Venting'}</button>
-            <button className="btn btn-ghost"   onClick={() => navTo('help')}>{isKid ? '🤝 Talk to Someone' : 'Find Support'}</button>
+            <button className="btn btn-primary" onClick={() => navTo('vent')}>Start Venting</button>
+            <button className="btn btn-ghost"   onClick={() => navTo('help')}>Find Support</button>
           </div>
         </div>
         <div className="hero-visual">
           <div className="hero-cards-stack">
-            <div className="mini-card mc-1"><span className="mc-icon">💜</span><div className="mc-text"><div className="mc-title">{isKid ? 'People care about you' : 'Community heard you'}</div><div className="mc-sub">Real reactions from real people</div></div></div>
-            <div className="mini-card mc-2"><span className="mc-icon">🤝</span><div className="mc-text"><div className="mc-title">{isKid ? 'Friendly helpers ready' : 'Volunteers ready'}</div><div className="mc-sub">{stats.volunteers || '...'} available right now</div></div></div>
-            <div className="mini-card mc-3"><span className="mc-icon">{isKid ? '⭐' : '🏥'}</span><div className="mc-text"><div className="mc-title">{isKid ? 'You are safe here' : 'Emergency slots'}</div><div className="mc-sub">{isKid ? 'Always here for you' : `${stats.slots || '...'} open nearby`}</div></div></div>
+            <div className="mini-card mc-1"><span className="mc-icon">💜</span><div className="mc-text"><div className="mc-title">Community heard you</div><div className="mc-sub">Real reactions from real people</div></div></div>
+            <div className="mini-card mc-2"><span className="mc-icon">🤝</span><div className="mc-text"><div className="mc-title">Volunteers ready</div><div className="mc-sub">{stats.volunteers || '...'} available right now</div></div></div>
+            <div className="mini-card mc-3"><span className="mc-icon">🏥</span><div className="mc-text"><div className="mc-title">Emergency slots</div><div className="mc-sub">{stats.slots || '...'} open nearby</div></div></div>
           </div>
         </div>
       </div>
@@ -154,32 +128,28 @@ export default function HomeSection({ navTo, user }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div className="mci-icon" style={{ fontSize: 24 }}>📊</div>
             <div>
-              <div className="mci-title">{isKid ? 'How are you feeling today? 🌈' : 'Daily Mood Tracker'}</div>
-              <div className="mci-sub">{isKid ? 'Tell us 3 times a day — morning, afternoon and night!' : '3 check-ins per day — morning, afternoon & evening'}</div>
+              <div className="mci-title">Daily Mood Tracker</div>
+              <div className="mci-sub">3 check-ins per day — morning, afternoon &amp; evening</div>
             </div>
           </div>
-          {/* Slot pills */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {SLOTS.map(s => {
               const done = !!todayLogs.find(l => l.slot === s.key);
-              const isCurrent = activeSlot?.key === s.key;
-              const isManual = manualSlot?.key === s.key;
+              const isCurrent = activeSlot?.key === s.key || manualSlot?.key === s.key;
               return (
                 <button key={s.key}
-                  onClick={() => {
-                    if (!done) { setManualSlot(s); setSelectedScore(null); setNote(''); }
-                  }}
+                  onClick={() => { if (!done) { setManualSlot(s); setSelectedScore(null); setNote(''); } }}
                   title={done ? 'Already logged' : `Log ${s.label}`}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 5,
                     padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600,
-                    background: done ? 'rgba(34,197,94,0.15)' : (isCurrent || isManual) ? `${s.color}22` : 'rgba(255,255,255,0.05)',
-                    border: `1px solid ${done ? 'rgba(34,197,94,0.3)' : (isCurrent || isManual) ? s.color + '55' : 'var(--border)'}`,
-                    color: done ? '#86efac' : (isCurrent || isManual) ? s.color : 'var(--text-dim)',
+                    background: done ? 'rgba(34,197,94,0.15)' : isCurrent ? `${s.color}22` : 'rgba(255,255,255,0.05)',
+                    border: `1px solid ${done ? 'rgba(34,197,94,0.3)' : isCurrent ? s.color + '55' : 'var(--border)'}`,
+                    color: done ? '#86efac' : isCurrent ? s.color : 'var(--text-dim)',
                     cursor: done ? 'default' : 'pointer',
                   }}>
                   {s.icon} {s.label.split(' ')[0]}
-                  {done ? <span style={{ marginLeft: 2 }}>✓</span> : <span style={{ marginLeft: 2, fontSize: 10 }}>tap</span>}
+                  {done ? <span style={{ marginLeft: 2 }}>✓</span> : <span style={{ marginLeft: 2, fontSize: 10, opacity: 0.6 }}>tap</span>}
                 </button>
               );
             })}
@@ -190,9 +160,9 @@ export default function HomeSection({ navTo, user }) {
         {allDone && (
           <div style={{ textAlign: 'center', padding: '20px 0' }}>
             <div style={{ fontSize: 36, marginBottom: 8 }}>🎉</div>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>{isKid ? 'Amazing! You checked in 3 times today!' : 'All 3 check-ins done for today!'}</div>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>All 3 check-ins done for today!</div>
             <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>
-              {isKid ? 'Your average feeling today:' : 'Your average mood today:'} <strong style={{ color: '#a5b4fc' }}>{avgToday} / 5</strong>
+              Your average mood today: <strong style={{ color: '#a5b4fc' }}>{avgToday} / 5</strong>
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
               {doneSlots.map(s => {
@@ -205,9 +175,7 @@ export default function HomeSection({ navTo, user }) {
                 );
               })}
             </div>
-            <button className="mci-view-btn" style={{ marginTop: 16 }} onClick={() => navTo('card')}>
-              {isKid ? 'See My Mood Card →' : 'View Health Card →'}
-            </button>
+            <button className="mci-view-btn" style={{ marginTop: 16 }} onClick={() => navTo('card')}>View Health Card →</button>
           </div>
         )}
 
@@ -219,12 +187,12 @@ export default function HomeSection({ navTo, user }) {
           </div>
         )}
 
-        {/* No active slot and not all done */}
+        {/* No active slot */}
         {!allDone && !activeSlot && !justLogged && !loadingMood && (
           <div style={{ padding: '16px 0', color: 'var(--text-muted)', fontSize: 14 }}>
             {(() => {
               const h = new Date().getHours();
-              if (h < 5) return <span>🌙 {isKid ? 'Go to sleep! Check-in opens at 5 AM 😴' : 'Check-in opens at 5 AM — get some rest.'}</span>;
+              if (h < 5) return <span>🌙 Check-in opens at <strong>5 AM</strong> — get some rest.</span>;
               if (nextSlot) return <span>{nextSlot.icon} Next check-in: <strong style={{ color: nextSlot.color }}>{nextSlot.label}</strong> — {slotTimeLabel(nextSlot.key)} <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 8 }}>(or tap a slot above to log now)</span></span>;
               return <span>✓ All check-ins complete for today. See you tomorrow!</span>;
             })()}
@@ -238,41 +206,35 @@ export default function HomeSection({ navTo, user }) {
               <span style={{ fontSize: 28 }}>{activeSlot.icon}</span>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 15, color: activeSlot.color }}>{activeSlot.label}</div>
-                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                  {isKid ? kidsPrompts[activeSlot.key] : activeSlot.prompt}
-                </div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{activeSlot.prompt}</div>
               </div>
               <div style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)', background: 'rgba(255,255,255,0.05)', padding: '4px 10px', borderRadius: 20, border: '1px solid var(--border)' }}>
                 {slotTimeLabel(activeSlot.key)}
               </div>
             </div>
-
             <div className="mci-emojis" style={{ marginBottom: 14 }}>
               {MOOD_OPTIONS.map(({ score, emoji, label }) => (
                 <button key={score}
                   className={`mci-emoji-btn${selectedScore === score ? ' selected' : ''}`}
                   onClick={() => setSelectedScore(score)}
-                  title={label}
                   style={selectedScore === score ? { borderColor: activeSlot.color, background: activeSlot.color + '22' } : {}}>
                   {emoji}<span>{label}</span>
                 </button>
               ))}
             </div>
-
             {selectedScore && (
               <div style={{ marginBottom: 14 }}>
                 <input type="text" className="form-input"
-                  placeholder={isKid ? 'Want to say anything? (optional)' : `Optional: what's on your mind?`}
+                  placeholder="Optional: what's on your mind?"
                   value={note} onChange={e => setNote(e.target.value)}
                   style={{ width: '100%', padding: '10px 14px', fontSize: 13 }} maxLength={200} />
               </div>
             )}
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <button className="auth-submit-btn"
                 style={{ width: 'auto', padding: '10px 28px', marginBottom: 0, background: `linear-gradient(135deg, ${activeSlot.color}, ${activeSlot.color}cc)` }}
                 onClick={submitMood} disabled={!selectedScore || submitting}>
-                {submitting ? '⏳ Saving...' : isKid ? `Save My Feeling` : `Log ${activeSlot.label.split(' ')[0]} Mood`}
+                {submitting ? '⏳ Saving...' : `Log ${activeSlot.label.split(' ')[0]} Mood`}
               </button>
               {manualSlot && (
                 <button onClick={() => { setManualSlot(null); setSelectedScore(null); }}
@@ -310,9 +272,9 @@ export default function HomeSection({ navTo, user }) {
       <div className="live-stats">
         {[
           { icon: '👥', value: loadingStats ? '...' : stats.users,      label: 'Registered Users' },
-          { icon: '🙌', value: loadingStats ? '...' : stats.volunteers, label: isKid ? 'Friendly Helpers' : 'Volunteers Available' },
+          { icon: '🙌', value: loadingStats ? '...' : stats.volunteers, label: 'Volunteers Available' },
           { icon: '🏥', value: loadingStats ? '...' : stats.slots,      label: 'Crisis Slots Open' },
-          { icon: '💬', value: loadingStats ? '...' : stats.ventsToday, label: isKid ? 'Feelings Shared Today' : 'Vents Posted Today' },
+          { icon: '💬', value: loadingStats ? '...' : stats.ventsToday, label: 'Vents Posted Today' },
         ].map((s, i) => (
           <div key={i} className="stat-card">
             <div className="stat-icon">{s.icon}</div>
@@ -324,45 +286,33 @@ export default function HomeSection({ navTo, user }) {
 
       {/* Pillars */}
       <div className="pillars-section">
-        <h2 className="section-title">{isKid ? 'How Can MindBridge Help You?' : 'How MindBridge Works'}</h2>
-        <p className="section-subtitle">{isKid ? 'Three easy ways to feel better and get support' : 'A stepped-care model designed to meet you exactly where you are'}</p>
+        <h2 className="section-title">How MindBridge Works</h2>
+        <p className="section-subtitle">A stepped-care model designed to meet you exactly where you are</p>
         <div className="pillars-grid">
           <div className="pillar-card" onClick={() => navTo('vent')}>
-            <div className="pillar-icon-wrap vent-gradient"><span className="pillar-icon">{isKid ? '💬' : '🌊'}</span></div>
-            <div className="pillar-badge">{isKid ? 'Express Yourself' : 'Community'}</div>
-            <h3 className="pillar-title">{isKid ? 'Share Your Feelings' : 'Vent Mode'}</h3>
-            <p className="pillar-desc">{isKid ? 'Write how you feel without anyone knowing it is you. Others will send you love and support.' : 'Share anonymously. Be heard by a supportive community. AI monitors for distress and reaches out if you need more.'}</p>
-            <ul className="pillar-features">
-              <li>✓ {isKid ? 'Nobody knows it is you' : '100% anonymous posting'}</li>
-              <li>✓ {isKid ? 'Get hearts and support' : 'AI sentiment protection'}</li>
-              <li>✓ {isKid ? 'Read others\' stories' : 'Community reactions'}</li>
-            </ul>
-            <button className="pillar-cta vent-cta">{isKid ? 'Share Now →' : 'Start Venting →'}</button>
+            <div className="pillar-icon-wrap vent-gradient"><span className="pillar-icon">🌊</span></div>
+            <div className="pillar-badge">Community</div>
+            <h3 className="pillar-title">Vent Mode</h3>
+            <p className="pillar-desc">Share anonymously. Be heard by a supportive community. AI monitors for distress and reaches out if you need more.</p>
+            <ul className="pillar-features"><li>✓ 100% anonymous posting</li><li>✓ AI sentiment protection</li><li>✓ Community reactions</li></ul>
+            <button className="pillar-cta vent-cta">Start Venting →</button>
           </div>
           <div className="pillar-card featured-pillar" onClick={() => navTo('help')}>
             <div className="pillar-badge-featured">Most Used</div>
             <div className="pillar-icon-wrap help-gradient"><span className="pillar-icon">🤝</span></div>
-            <div className="pillar-badge">{isKid ? 'Talk to Someone' : 'Volunteer-Led'}</div>
-            <h3 className="pillar-title">{isKid ? 'Chat with a Helper' : 'I Need Help'}</h3>
-            <p className="pillar-desc">{isKid ? 'Talk privately with a kind, trained helper. They will listen and help you feel better.' : 'Private one-on-one chat with trained NGO volunteers. If things escalate, get a warm handoff to a therapist.'}</p>
-            <ul className="pillar-features">
-              <li>✓ {isKid ? 'Kind and friendly helpers' : 'Trained peer support'}</li>
-              <li>✓ {isKid ? 'Private conversation' : 'Private encrypted chat'}</li>
-              <li>✓ {isKid ? 'Always safe' : 'Smooth escalation path'}</li>
-            </ul>
-            <button className="pillar-cta help-cta">{isKid ? 'Talk Now →' : 'Connect Now →'}</button>
+            <div className="pillar-badge">Volunteer-Led</div>
+            <h3 className="pillar-title">I Need Help</h3>
+            <p className="pillar-desc">Private one-on-one chat with trained NGO volunteers. If things escalate, get a warm handoff to a therapist.</p>
+            <ul className="pillar-features"><li>✓ Trained peer support</li><li>✓ Private encrypted chat</li><li>✓ Smooth escalation path</li></ul>
+            <button className="pillar-cta help-cta">Connect Now →</button>
           </div>
           <div className="pillar-card" onClick={() => navTo('journal')}>
             <div className="pillar-icon-wrap" style={{ background: 'rgba(20,184,166,0.2)' }}><span className="pillar-icon">📔</span></div>
-            <div className="pillar-badge">{isKid ? 'My Diary' : 'Private Journal'}</div>
-            <h3 className="pillar-title">{isKid ? 'My Feelings Diary' : 'Daily Journal'}</h3>
-            <p className="pillar-desc">{isKid ? 'Write your thoughts in your private diary. Only you can see it!' : 'Write privately about your day, thoughts, and feelings. Your journal is encrypted and only visible to you.'}</p>
-            <ul className="pillar-features">
-              <li>✓ {isKid ? 'Only you can read it' : '100% private to you'}</li>
-              <li>✓ {isKid ? 'Write anything you want' : 'Mood-tagged entries'}</li>
-              <li>✓ {isKid ? 'Feel better by writing' : 'Builds self-awareness'}</li>
-            </ul>
-            <button className="pillar-cta" style={{ color: '#14b8a6' }}>{isKid ? 'Open Diary →' : 'Write Now →'}</button>
+            <div className="pillar-badge">Private Journal</div>
+            <h3 className="pillar-title">Daily Journal</h3>
+            <p className="pillar-desc">Write privately about your day, thoughts, and feelings. Your journal is completely personal and only visible to you.</p>
+            <ul className="pillar-features"><li>✓ 100% private to you</li><li>✓ Mood-tagged entries</li><li>✓ Builds self-awareness</li></ul>
+            <button className="pillar-cta" style={{ color: '#14b8a6' }}>Write Now →</button>
           </div>
         </div>
       </div>
@@ -370,16 +320,16 @@ export default function HomeSection({ navTo, user }) {
       {/* Health Card Preview */}
       <div className="card-preview-section">
         <div className="card-preview-content">
-          <h2 className="section-title">{isKid ? 'Your Mood Card' : 'Your Digital Health Card'}</h2>
-          <p className="section-subtitle">{isKid ? 'See how your feelings change over time. Every check-in is saved here!' : 'Every check-in, vent, and session builds your private health record — giving you continuity of care.'}</p>
-          <button className="btn btn-primary" onClick={() => navTo('card')}>{isKid ? 'See My Mood Card →' : 'View My Health Card'}</button>
+          <h2 className="section-title">Your Digital Health Card</h2>
+          <p className="section-subtitle">Every check-in, vent, and session builds your private health record — giving you continuity of care.</p>
+          <button className="btn btn-primary" onClick={() => navTo('card')}>View My Health Card</button>
         </div>
         <div className="card-preview-visual">
           <div className="health-card-mock">
             <div className="hcm-header">
               <div className="hcm-avatar">📊</div>
               <div className="hcm-info">
-                <div className="hcm-name">{isKid ? "Today's Feelings" : "Today's Mood"}</div>
+                <div className="hcm-name">Today's Mood</div>
                 <div className="hcm-id">{doneSlots.length} / 3 check-ins done</div>
               </div>
               <div className="hcm-safety safe">● Live</div>

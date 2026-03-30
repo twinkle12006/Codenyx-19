@@ -18,7 +18,6 @@ export default function AuthScreen() {
   const [suEmail, setSuEmail] = useState('');
   const [suPassword, setSuPassword] = useState('');
   const [suRole, setSuRole] = useState('user');
-  const [suGuardian, setSuGuardian] = useState('');
   const [suConsent, setSuConsent] = useState(false);
   const [suError, setSuError] = useState('');
   const [suLoading, setSuLoading] = useState(false);
@@ -54,12 +53,10 @@ export default function AuthScreen() {
   const handleSignUp = async (e) => {
     e.preventDefault();
     setSuError('');
-    if (parseInt(suAge) < 5) { setSuError('⚠ Must be at least 5 years old.'); return; }
-    if (parseInt(suAge) < 15 && !suGuardian) { setSuError('⚠ Guardian email is required for users under 15.'); return; }
     if (!suConsent) { setSuError('⚠ Please accept the privacy policy.'); return; }
     setSuLoading(true);
     try {
-      const res = await registerUser({ name: suName, email: suEmail, password: suPassword, age: parseInt(suAge), role: suRole, guardianEmail: suGuardian });
+      const res = await registerUser({ name: suName, email: suEmail, password: suPassword, age: parseInt(suAge), role: suRole });
       login(res.data.user, res.data.token);
       navigate('/home', { replace: true });
     } catch (err) {
@@ -144,20 +141,9 @@ export default function AuthScreen() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Age</label>
-                  <input type="number" className="form-input" placeholder="12" min="5" max="99" required value={suAge} onChange={e => setSuAge(e.target.value)} />
+                  <input type="number" className="form-input" placeholder="18" min="1" max="99" required value={suAge} onChange={e => setSuAge(e.target.value)} />
                 </div>
               </div>
-              {/* Guardian email for under-15 */}
-              {parseInt(suAge) > 0 && parseInt(suAge) < 15 && (
-                <div className="form-group">
-                  <label className="form-label" style={{ color: '#fcd34d' }}>👨‍👩‍👧 Guardian / Parent Email <span style={{ fontSize: 11, fontWeight: 400 }}>(required for under 15)</span></label>
-                  <div className="input-wrap">
-                    <span className="input-icon">✉️</span>
-                    <input type="email" className="form-input" placeholder="parent@example.com" required value={suGuardian} onChange={e => setSuGuardian(e.target.value)} />
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>Your guardian will be notified if we detect high distress.</div>
-                </div>
-              )}
               <div className="form-group">
                 <label className="form-label">Email address</label>
                 <div className="input-wrap">

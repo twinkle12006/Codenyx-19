@@ -53,3 +53,9 @@ export const deleteVent      = (id)        => API.delete(`/admin/vents/${id}`);
 export const getMentorMe       = ()        => API.get('/mentor/me');
 export const updateMentorMe    = (data)    => API.patch('/mentor/me', data);
 export const getMentorSessions = ()        => API.get('/mentor/sessions');
+
+// Live Chat
+export const getChatMessages   = (sid, since) => API.get(`/chat/${sid}${since ? `?since=${since}` : ''}`);
+export const sendChatMessage   = (sid, data)  => API.post(`/chat/${sid}`, data);
+export const endChatSession    = (sid, data)  => API.post(`/chat/${sid}/end`, data);
+export const getMentorActiveChats = ()        => API.get('/chat/mentor/active');

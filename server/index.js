@@ -17,6 +17,7 @@ app.use('/api/healthcard', require('./routes/healthcard'));
 app.use('/api/journal',    require('./routes/journal'));
 app.use('/api/admin',      require('./routes/admin'));
 app.use('/api/mentor',     require('./routes/mentor'));
+app.use('/api/chat',       require('./routes/chat'));
 
 mongoose
   .connect(process.env.MONGO_URI)
