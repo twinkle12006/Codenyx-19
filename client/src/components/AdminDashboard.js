@@ -64,9 +64,7 @@ export default function AdminDashboard() {
       setForm({ name:'', username:'', email:'', password:'', age:'', specialties:'', bio:'' });
     } catch (e) { setFormErr(e.response?.data?.message || 'Failed to create mentor'); }
     finally { setSaving(false); }
-  }; = async (mentor) => {
-    try { const r = await updateMentor(mentor._id, { status: mentor.status === 'available' ? 'away' : 'available' }); setMentors(m => m.map(x => x._id === mentor._id ? r.data : x)); } catch {}
-  };
+  }; 
   const toggleMentorStatus = async (mentor) => {
     try { const r = await updateMentor(mentor._id, { status: mentor.status === 'available' ? 'away' : 'available' }); setMentors(m => m.map(x => x._id === mentor._id ? r.data : x)); } catch {}
   };

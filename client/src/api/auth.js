@@ -65,6 +65,7 @@ export const getAdminDoctors = ()          => API.get('/admin/doctors');
 export const createDoctor    = (data)      => API.post('/admin/doctors', data);
 export const updateDoctor    = (id, data)  => API.patch(`/admin/doctors/${id}`, data);
 export const deleteDoctor    = (id)        => API.delete(`/admin/doctors/${id}`);
+export const getMentorMe       = ()        => API.get('/mentor/me');
 export const updateMentorMe    = (data)    => API.patch('/mentor/me', data);
 export const getMentorSessions = ()        => API.get('/mentor/sessions');
 
