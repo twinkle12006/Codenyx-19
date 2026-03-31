@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getClinics, bookClinic, getAvailableDoctors } from '../../api/auth';
+import { getAvailableDoctors } from '../../api/auth';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
 
@@ -7,9 +7,6 @@ export default function SosSection() {
   const { user }              = useAuth();
   const { socket, connected } = useSocket();
 
-  const [clinics, setClinics]   = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [booked, setBooked]     = useState({});
   const [doctors, setDoctors]   = useState([]);
   const [activeDoctor, setActiveDoctor] = useState(null);
 
@@ -24,14 +21,6 @@ export default function SosSection() {
   const typingTimer    = useRef(null);
   const messagesEndRef = useRef(null);
 
-  const fetchClinics = async () => {
-    try { const r = await getClinics(); setClinics(r.data); }
-    catch (e) { console.error(e); }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => { fetchClinics(); }, []);
-  useEffect(() => { const t = setInterval(fetchClinics, 30000); return () => clearInterval(t); }, []);
   useEffect(() => {
     getAvailableDoctors().then(r => {
       setDoctors(r.data);
@@ -120,11 +109,6 @@ export default function SosSection() {
     typingTimer.current = setTimeout(() => socket.emit('typing', { sessionId: sid, isTyping: false }), 2000);
   };
 
-  const handleBook = async (id, e) => {
-    e.stopPropagation();
-    try { await bookClinic(id); setBooked(b => ({ ...b, [id]: true })); fetchClinics(); }
-    catch (e) { alert(e.response?.data?.message || 'Booking failed'); }
-  };
 
   // ── Chat view ──────────────────────────────────────────────────────────────
   if (inChat || connecting) {

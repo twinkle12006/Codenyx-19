@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Use relative URL — CRA proxy handles /api -> localhost:5000 in dev
 // In production, set REACT_APP_API_URL env var to your backend URL
-const BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const BASE = process.env.REACT_APP_API_URL || 'https://codenyx-19.onrender.com';
 
 const API = axios.create({ baseURL: `${BASE}/api` });
 

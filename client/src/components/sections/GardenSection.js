@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { getHealthCard } from '../../api/auth';
 
 // ── Garden computation from health data ──────────────────────────────────────
@@ -118,7 +118,6 @@ export default function GardenSection({ user }) {
   const [loading, setLoading]   = useState(true);
   const [soundOn, setSoundOn]   = useState(false);
   const [shared, setShared]     = useState(false);
-  const audioRef = useRef(null);
 
   useEffect(() => {
     getHealthCard()
@@ -137,6 +136,7 @@ export default function GardenSection({ user }) {
       y: 60 + Math.cos(i) * 15,
       delay: i * 0.1,
     }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [garden?.flowerCount]);
 
   const butterflyPositions = React.useMemo(() => {
@@ -146,6 +146,7 @@ export default function GardenSection({ user }) {
       y: `${20 + Math.sin(i) * 15}%`,
       delay: i * 0.5,
     }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [garden?.butterflies]);
 
   if (loading) return (

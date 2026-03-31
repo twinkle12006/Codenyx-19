@@ -159,8 +159,6 @@ export default function HelpSection() {
     };
   }, [socket]);
 
-  const now = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
   const startChat = (vol) => {
     if (!socket || !connected) { alert('Chat is connecting, please try again.'); return; }
     const userId = user?.id;

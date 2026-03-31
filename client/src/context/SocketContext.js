@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 
 const SocketContext = createContext(null);
 
-const SOCKET_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const SOCKET_URL = process.env.REACT_APP_API_URL || 'https://codenyx-19.onrender.com';
 
 export function SocketProvider({ token, children }) {
   const [socket, setSocket]       = useState(null);

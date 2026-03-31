@@ -4,7 +4,7 @@ import { io } from 'socket.io-client';
 import { loginUser, registerUser } from '../api/auth';
 import { useAuth } from '../context/AuthContext';
 
-const SOCKET_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const SOCKET_URL = process.env.REACT_APP_API_URL || 'https://codenyx-19.onrender.com';
 const THERAPIST  = { name: 'Dr. Ananya', initials: 'DA', color: '#f43f5e' };
 
 function EmergencyChat({ onClose }) {
