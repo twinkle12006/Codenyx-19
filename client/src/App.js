@@ -6,6 +6,7 @@ import AuthScreen from './components/AuthScreen';
 import Dashboard from './components/Dashboard';
 import MentorDashboard from './components/MentorDashboard';
 import AdminDashboard from './components/AdminDashboard';
+import DoctorDashboard from './components/DoctorDashboard';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -26,6 +27,7 @@ function RoleRouter() {
   if (!user) return <Navigate to="/login" replace />;
   if (user.role === 'admin')  return <AdminDashboard />;
   if (user.role === 'mentor') return <MentorDashboard />;
+  if (user.role === 'doctor') return <DoctorDashboard />;
   return <Dashboard />;
 }
 

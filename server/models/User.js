@@ -7,7 +7,7 @@ const userSchema = new mongoose.Schema({
   email:         { type: String, required: true, unique: true, lowercase: true },
   password:      { type: String, required: true },
   age:           { type: Number, default: 0 },
-  role:          { type: String, enum: ['user', 'mentor', 'admin'], default: 'user' },
+  role:          { type: String, enum: ['user', 'mentor', 'admin', 'doctor'], default: 'user' },
   // mentor-specific fields
   specialties:   [String],
   bio:           { type: String, default: '' },
@@ -15,6 +15,12 @@ const userSchema = new mongoose.Schema({
   sessions:      { type: Number, default: 0 },
   rating:        { type: Number, default: 5.0 },
   isActive:      { type: Boolean, default: true },
+  // doctor-specific fields
+  experience:    { type: Number, default: 0 },        // years
+  qualification: { type: String, default: '' },       // e.g. "MBBS, MD Psychiatry"
+  casesResolved: { type: Number, default: 0 },
+  activeCases:   { type: Number, default: 0 },
+  zoomLink:      { type: String, default: '' },
 }, { timestamps: true });
 
 userSchema.pre('save', async function () {

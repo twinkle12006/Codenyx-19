@@ -50,6 +50,13 @@ const seedVents = [
   { anon: 'Rising Tide',          color: '#34d399', mood: 'hopeful',     text: "Six months ago I couldn't get out of bed. Today I went for a run. Recovery isn't linear but it's real. Keep going 💚", distress: 0.04, likes: 45, dislikes: 0 },
 ];
 
+// ─── Doctors ─────────────────────────────────────────────────────────────────
+const doctors = [
+  { name: 'Dr. Ananya Rao',  username: 'dr_ananya',  email: 'ananya@sahara.ngo',  password: 'doctor123', age: 38, role: 'doctor', specialties: ['Crisis Intervention', 'Trauma', 'Suicidal Ideation'], bio: "I'm here to help you through the hardest moments. You are not alone.", qualification: 'MBBS, MD Psychiatry', experience: 12, casesResolved: 284, activeCases: 2, zoomLink: 'https://zoom.us/j/sahara-ananya', status: 'available', rating: 4.9 },
+  { name: 'Dr. Kiran Mehta', username: 'dr_kiran',   email: 'kiran@sahara.ngo',   password: 'doctor123', age: 45, role: 'doctor', specialties: ['Depression', 'Anxiety Disorders', 'PTSD'],             bio: 'Fifteen years of crisis care. Every life matters.', qualification: 'MBBS, DPM, DNB Psychiatry', experience: 15, casesResolved: 412, activeCases: 1, zoomLink: 'https://zoom.us/j/sahara-kiran', status: 'available', rating: 5.0 },
+  { name: 'Dr. Preethi Nair',username: 'dr_preethi', email: 'preethi@sahara.ngo', password: 'doctor123', age: 34, role: 'doctor', specialties: ['Youth Mental Health', 'Self-harm', 'Grief'],           bio: 'Specializing in youth crisis support. Reach out anytime.', qualification: 'MBBS, MD Psychiatry', experience: 8, casesResolved: 196, activeCases: 0, zoomLink: 'https://zoom.us/j/sahara-preethi', status: 'away', rating: 4.8 },
+];
+
 // ─── Mentors ──────────────────────────────────────────────────────────────────
 const mentors = [
   { name: 'Priya M.',  username: 'priya_m',   email: 'priya@mindbridge.ngo',  password: 'mentor123', age: 28, role: 'mentor', specialties: ['Anxiety', 'Academic Stress', 'Loneliness'],    bio: "I'm here to listen, not judge.",           status: 'available', sessions: 142, rating: 4.9 },
@@ -155,6 +162,11 @@ mongoose.connect(process.env.MONGO_URI).then(async () => {
   console.log('🤝 Mentors seeded →  password: mentor123');
   mentors.forEach(m => console.log(`   @${m.username}  (${m.name})`));
 
+  // 4. Doctors
+  for (const d of doctors) await User.create(d);
+  console.log('🏥 Doctors seeded →  password: doctor123');
+  doctors.forEach(d => console.log(`   @${d.username}  (${d.name})`));
+
   // 4. Demo users + their analytics data
   console.log('\n👥 Demo users + analytics:');
   for (const demo of demoUsers) {
@@ -197,7 +209,8 @@ mongoose.connect(process.env.MONGO_URI).then(async () => {
   console.log('  User    →  username: rohan_v     / password: demo1234  (crisis + recovery)');
   console.log('  User    →  username: preethi_n   / password: demo1234  (stable/high)');
   console.log('  User    →  username: karan_m     / password: demo1234  (volatile)');
-  console.log('  User    →  username: divya_p     / password: demo1234  (burnout pattern)');
+  console.log('  Doctor  →  username: dr_ananya    / password: doctor123');
+  console.log('  Doctor  →  username: dr_kiran     / password: doctor123');
   console.log('─────────────────────────────────────────\n');
 
   process.exit(0);

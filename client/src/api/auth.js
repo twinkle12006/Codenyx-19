@@ -54,8 +54,17 @@ export const updateUser      = (id, data)  => API.patch(`/admin/users/${id}`, da
 export const getAdminVents   = ()          => API.get('/admin/vents');
 export const deleteVent      = (id)        => API.delete(`/admin/vents/${id}`);
 
-// Mentor
-export const getMentorMe       = ()        => API.get('/mentor/me');
+// Doctor
+export const getDoctorMe         = ()        => API.get('/doctor/me');
+export const updateDoctorMe      = (data)    => API.patch('/doctor/me', data);
+export const getDoctorActiveSos  = ()        => API.get('/doctor/active-sos');
+export const getAvailableDoctors = ()        => API.get('/doctor/available');
+
+// Admin — doctors
+export const getAdminDoctors = ()          => API.get('/admin/doctors');
+export const createDoctor    = (data)      => API.post('/admin/doctors', data);
+export const updateDoctor    = (id, data)  => API.patch(`/admin/doctors/${id}`, data);
+export const deleteDoctor    = (id)        => API.delete(`/admin/doctors/${id}`);
 export const updateMentorMe    = (data)    => API.patch('/mentor/me', data);
 export const getMentorSessions = ()        => API.get('/mentor/sessions');
 

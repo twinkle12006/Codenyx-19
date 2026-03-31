@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getClinics, bookClinic } from '../../api/auth';
+import { getClinics, bookClinic, getAvailableDoctors } from '../../api/auth';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
-
-const THERAPIST = { name: 'Dr. Ananya', initials: 'DA', color: '#f43f5e', bio: "I'm a licensed crisis therapist. You're safe here — take your time." };
 
 export default function SosSection() {
   const { user }              = useAuth();
@@ -12,6 +10,8 @@ export default function SosSection() {
   const [clinics, setClinics]   = useState([]);
   const [loading, setLoading]   = useState(true);
   const [booked, setBooked]     = useState({});
+  const [doctors, setDoctors]   = useState([]);
+  const [activeDoctor, setActiveDoctor] = useState(null);
 
   // Chat state
   const [inChat, setInChat]         = useState(false);
@@ -32,6 +32,12 @@ export default function SosSection() {
 
   useEffect(() => { fetchClinics(); }, []);
   useEffect(() => { const t = setInterval(fetchClinics, 30000); return () => clearInterval(t); }, []);
+  useEffect(() => {
+    getAvailableDoctors().then(r => {
+      setDoctors(r.data);
+      if (r.data.length > 0) setActiveDoctor(r.data[0]);
+    }).catch(() => {});
+  }, []);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, typing]);
 
   // Socket listeners
@@ -67,8 +73,8 @@ export default function SosSection() {
     if (!socket || !connected) { alert('Connecting to crisis support, please try again in a moment.'); return; }
     const userId = user?.id;
     if (!userId) { alert('Please log in to access crisis support.'); return; }
+    const doctor = activeDoctor || { name: 'Dr. Ananya', bio: "I'm a licensed crisis therapist. You're safe here." };
     setConnecting(true);
-    // Simulate brief connection delay for realism
     setTimeout(() => {
       const sid = `${userId}__sos_${Date.now()}`;
       sessionIdRef.current = sid;
@@ -76,7 +82,7 @@ export default function SosSection() {
       setMessages([{
         _id: 'welcome',
         from: 'recv',
-        text: `Hi, I'm ${THERAPIST.name}. ${THERAPIST.bio} What's going on right now?`,
+        text: `Hi, I'm ${doctor.name}. ${doctor.bio || "I'm here to help."} What's going on right now?`,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       }]);
       setInChat(true);
@@ -127,9 +133,9 @@ export default function SosSection() {
         <div className="chat-header" style={{ borderBottom: '1px solid rgba(244,63,94,0.3)', background: 'rgba(244,63,94,0.05)' }}>
           <button className="back-btn" onClick={endChat}>← Back</button>
           <div className="chat-partner-info">
-            <div className="chat-avatar" style={{ background: THERAPIST.color, fontSize: 14 }}>{THERAPIST.initials}</div>
+            <div className="chat-avatar" style={{ background: '#f43f5e', fontSize: 14 }}>{(activeDoctor?.name || 'Dr. Ananya').split(' ').map(w=>w[0]).join('').slice(0,2)}</div>
             <div>
-              <div className="chat-partner-name">{THERAPIST.name}</div>
+              <div className="chat-partner-name">{activeDoctor?.name || 'Dr. Ananya'}</div>
               <div className="chat-partner-status" style={{ color: '#fca5a5' }}>
                 {connecting ? '⏳ Connecting...' : sessionEnded ? '⚫ Session ended' : '🔴 Crisis Support · Licensed Therapist'}
               </div>
@@ -158,7 +164,7 @@ export default function SosSection() {
               {typing && (
                 <div className="chat-typing">
                   <div className="typing-bubble"><span></span><span></span><span></span></div>
-                  <small>{THERAPIST.name} is typing...</small>
+                  <small>{(activeDoctor?.name || 'Dr. Ananya').split(' ')[0]} is typing...</small>
                 </div>
               )}
               <div ref={messagesEndRef} />
@@ -201,15 +207,19 @@ export default function SosSection() {
 
       <div className="crisis-zone">
         <div className="crisis-btn-wrap">
-          {/* Therapist card */}
+          {/* Doctor card */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '20px 24px', background: 'rgba(244,63,94,0.06)', border: '1px solid rgba(244,63,94,0.25)', borderRadius: 16, marginBottom: 20 }}>
-            <div style={{ width: 56, height: 56, borderRadius: '50%', background: THERAPIST.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 18, color: 'white', flexShrink: 0 }}>
-              {THERAPIST.initials}
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#f43f5e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 18, color: 'white', flexShrink: 0 }}>
+              {(activeDoctor?.name || 'Dr. Ananya').split(' ').map(w=>w[0]).join('').slice(0,2)}
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700, fontSize: 16 }}>{THERAPIST.name}</div>
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>Licensed Crisis Therapist · Available 24/7</div>
-              <div style={{ fontSize: 12, color: '#fca5a5', marginTop: 4, fontStyle: 'italic' }}>"{THERAPIST.bio}"</div>
+              <div style={{ fontWeight: 700, fontSize: 16 }}>{activeDoctor?.name || 'Dr. Ananya'}</div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
+                {activeDoctor?.qualification || 'Licensed Crisis Therapist'} · {activeDoctor?.experience || 0} yrs · {activeDoctor?.casesResolved || 0} cases resolved
+              </div>
+              <div style={{ fontSize: 12, color: '#fca5a5', marginTop: 4, fontStyle: 'italic' }}>
+                "{activeDoctor?.bio || "I'm here to help. You're safe."}"
+              </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f43f5e', boxShadow: '0 0 8px #f43f5e' }} />
@@ -225,7 +235,7 @@ export default function SosSection() {
           >
             <div className="crisis-btn-inner">
               <span className="crisis-btn-icon">🤝</span>
-              <span className="crisis-btn-text">Connect to {THERAPIST.name} Now</span>
+              <span className="crisis-btn-text">Connect to {activeDoctor?.name || 'Dr. Ananya'} Now</span>
               <span className="crisis-btn-sub">{connected ? 'Average wait: ~90 seconds' : 'Connecting to server...'}</span>
             </div>
           </button>

@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   getAdminStats, getAdminMentors, createMentor, updateMentor, deleteMentor,
   getAdminUsers, updateUser, getAdminVents, deleteVent,
+  getAdminDoctors, createDoctor, updateDoctor, deleteDoctor,
 } from '../api/auth';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -31,10 +32,11 @@ export default function AdminDashboard() {
   const [tab, setTab]       = useState('overview');
   const [stats, setStats]   = useState(null);
   const [mentors, setMentors] = useState([]);
+  const [doctors, setDoctors] = useState([]);
   const [users, setUsers]   = useState([]);
   const [vents, setVents]   = useState([]);
   const [loading, setLoading] = useState(true);
-  const [addModal, setAddModal] = useState(false);
+  const [addModal, setAddModal] = useState(false); // false | 'mentor' | 'doctor'
   const [form, setForm] = useState({ name:'', username:'', email:'', password:'', age:'', specialties:'', bio:'' });
   const [formErr, setFormErr] = useState('');
   const [saving, setSaving] = useState(false);
@@ -44,6 +46,7 @@ export default function AdminDashboard() {
     try {
       const [s, m, u, v] = await Promise.all([getAdminStats(), getAdminMentors(), getAdminUsers(), getAdminVents()]);
       setStats(s.data); setMentors(m.data); setUsers(u.data); setVents(v.data);
+      try { const d = await getAdminDoctors(); setDoctors(d.data); } catch {}
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, []);
@@ -61,8 +64,9 @@ export default function AdminDashboard() {
       setForm({ name:'', username:'', email:'', password:'', age:'', specialties:'', bio:'' });
     } catch (e) { setFormErr(e.response?.data?.message || 'Failed to create mentor'); }
     finally { setSaving(false); }
+  }; = async (mentor) => {
+    try { const r = await updateMentor(mentor._id, { status: mentor.status === 'available' ? 'away' : 'available' }); setMentors(m => m.map(x => x._id === mentor._id ? r.data : x)); } catch {}
   };
-
   const toggleMentorStatus = async (mentor) => {
     try { const r = await updateMentor(mentor._id, { status: mentor.status === 'available' ? 'away' : 'available' }); setMentors(m => m.map(x => x._id === mentor._id ? r.data : x)); } catch {}
   };
@@ -93,7 +97,7 @@ export default function AdminDashboard() {
           <span style={{ fontSize:11, padding:'3px 10px', borderRadius:20, background:'rgba(244,63,94,0.15)', border:'1px solid rgba(244,63,94,0.3)', color:'#fca5a5', fontWeight:700, marginLeft:4 }}>NGO ADMIN</span>
         </div>
         <div style={{ display:'flex', gap:4, marginLeft:32 }}>
-          {[['overview','📊 Overview'],['analytics','📈 Analytics'],['mentors','🤝 Staff'],['users','👥 Users'],['vents','🌊 Vents']].map(([key, label]) => (
+          {[['overview','📊 Overview'],['analytics','📈 Analytics'],['mentors','🤝 Staff'],['doctors','🏥 Doctors'],['users','👥 Users'],['vents','🌊 Vents']].map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)} style={{ padding:'7px 16px', borderRadius:10, border:'none', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight:600, background: tab===key ? 'rgba(99,102,241,0.2)' : 'transparent', color: tab===key ? '#a5b4fc' : 'var(--text-muted)' }}>
               {label}
             </button>
@@ -352,7 +356,7 @@ export default function AdminDashboard() {
                 <h2 style={{ fontSize:26, fontWeight:800, margin:0 }}>Staff Management</h2>
                 <p style={{ fontSize:13, color:'var(--text-muted)', marginTop:4 }}>{availableMentors} of {mentors.length} mentors available now</p>
               </div>
-              <button onClick={() => setAddModal(true)} style={{ padding:'10px 22px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'white', fontWeight:700, cursor:'pointer', fontSize:14, fontFamily:'inherit' }}>+ Add Mentor</button>
+              <button onClick={() => setAddModal('mentor')} style={{ padding:'10px 22px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'white', fontWeight:700, cursor:'pointer', fontSize:14, fontFamily:'inherit' }}>+ Add Mentor</button>
             </div>
 
             {/* Mentor stats bar */}
@@ -440,6 +444,49 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {/* ── DOCTORS ── */}
+        {tab === 'doctors' && (
+          <div>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:24 }}>
+              <div>
+                <h2 style={{ fontSize:26, fontWeight:800, margin:0 }}>SOS Doctor Management</h2>
+                <p style={{ fontSize:13, color:'var(--text-muted)', marginTop:4 }}>{doctors.filter(d=>d.status==='available').length} of {doctors.length} doctors available</p>
+              </div>
+              <button onClick={() => setAddModal('doctor')} style={{ padding:'10px 22px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#f43f5e,#e11d48)', color:'white', fontWeight:700, cursor:'pointer', fontSize:14, fontFamily:'inherit' }}>+ Add Doctor</button>
+            </div>
+            {loading ? <div style={{ color:'var(--text-muted)' }}>Loading...</div> : (
+              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                {doctors.map((d, idx) => (
+                  <div key={d._id} style={{ ...card, display:'flex', alignItems:'center', gap:16, opacity: d.isActive===false ? 0.5 : 1 }}>
+                    <div style={{ width:48, height:48, borderRadius:'50%', background:'linear-gradient(135deg,#f43f5e,#e11d48)', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:800, fontSize:20, color:'white', flexShrink:0 }}>
+                      {d.name.charAt(0)}
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontWeight:700, fontSize:15 }}>{d.name} <span style={{ fontSize:12, color:'var(--text-dim)' }}>@{d.username}</span></div>
+                      <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>{d.qualification || 'Crisis Therapist'} · {d.experience || 0} yrs exp</div>
+                      <div style={{ display:'flex', gap:12, marginTop:4 }}>
+                        <span style={{ fontSize:12, color:'#86efac' }}>✅ {d.casesResolved || 0} resolved</span>
+                        <span style={{ fontSize:12, color:'#fca5a5' }}>🔴 {d.activeCases || 0} active</span>
+                        <span style={{ fontSize:12, color:'#fcd34d' }}>⭐ {d.rating?.toFixed(1)}</span>
+                        {d.zoomLink && <span style={{ fontSize:12, color:'#a5b4fc' }}>🎥 Zoom set</span>}
+                      </div>
+                    </div>
+                    <div style={{ display:'flex', gap:8, alignItems:'center', flexShrink:0 }}>
+                      <span style={{ fontSize:12, padding:'4px 10px', borderRadius:20, background: d.status==='available' ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)', color: d.status==='available' ? '#86efac' : '#fcd34d', border:`1px solid ${d.status==='available' ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.3)'}` }}>
+                        {d.status === 'available' ? '🟢 Available' : '🟡 Away'}
+                      </span>
+                      <button onClick={async () => { try { const r = await updateDoctor(d._id, { isActive: !d.isActive }); setDoctors(ds => ds.map(x => x._id===d._id ? r.data : x)); } catch {} }} style={{ padding:'6px 12px', borderRadius:8, border:`1px solid ${d.isActive===false ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.3)'}`, background: d.isActive===false ? 'rgba(34,197,94,0.1)' : 'rgba(245,158,11,0.1)', color: d.isActive===false ? '#86efac' : '#fcd34d', cursor:'pointer', fontSize:12, fontFamily:'inherit' }}>
+                        {d.isActive===false ? 'Activate' : 'Deactivate'}
+                      </button>
+                      <button onClick={async () => { if (!window.confirm('Remove doctor?')) return; try { await deleteDoctor(d._id); setDoctors(ds => ds.filter(x => x._id!==d._id)); } catch {} }} style={{ padding:'6px 12px', borderRadius:8, border:'1px solid rgba(244,63,94,0.3)', background:'rgba(244,63,94,0.1)', color:'#fca5a5', cursor:'pointer', fontSize:12, fontFamily:'inherit' }}>Remove</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── VENTS ── */}
         {tab === 'vents' && (
           <div>
@@ -476,27 +523,38 @@ export default function AdminDashboard() {
           onClick={e => e.target===e.currentTarget && setAddModal(false)}>
           <div style={{ background:'#12121f', border:'1px solid var(--border-strong)', borderRadius:20, padding:32, width:480, maxHeight:'90vh', overflowY:'auto' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24 }}>
-              <h3 style={{ fontSize:20, fontWeight:800 }}>Add New Mentor</h3>
+              <h3 style={{ fontSize:20, fontWeight:800 }}>{addModal === 'doctor' ? '🏥 Add New Doctor' : '🤝 Add New Mentor'}</h3>
               <button onClick={() => setAddModal(false)} style={{ background:'none', border:'none', color:'var(--text-muted)', fontSize:24, cursor:'pointer' }}>×</button>
             </div>
-            {[
-              ['Name', 'name', 'text', 'Priya M.'],
-              ['Username', 'username', 'text', 'priya_m'],
-              ['Email', 'email', 'email', 'priya@mindbridge.ngo'],
-              ['Password', 'password', 'password', 'Min 8 characters'],
-              ['Age', 'age', 'number', '25'],
-              ['Specialties (comma separated)', 'specialties', 'text', 'Anxiety, Depression'],
-              ['Bio', 'bio', 'text', 'Short intro...'],
-            ].map(([label, key, type, ph]) => (
+            {(addModal === 'doctor'
+              ? [['Name','name','text','Dr. Ananya'],['Username','username','text','dr_ananya'],['Email','email','email','ananya@sahara.ngo'],['Password','password','password','Min 8 chars'],['Age','age','number','35'],['Qualification','qualification','text','MBBS, MD Psychiatry'],['Experience (years)','experience','number','10'],['Specializations (comma separated)','specialties','text','Crisis, Trauma'],['Zoom Link','zoomLink','text','https://zoom.us/j/...'],['Bio','bio','text','Short intro...']]
+              : [['Name','name','text','Priya M.'],['Username','username','text','priya_m'],['Email','email','email','priya@mindbridge.ngo'],['Password','password','password','Min 8 characters'],['Age','age','number','25'],['Specialties (comma separated)','specialties','text','Anxiety, Depression'],['Bio','bio','text','Short intro...']]
+            ).map(([label, key, type, ph]) => (
               <div key={key} style={{ marginBottom:14 }}>
                 <label style={{ fontSize:13, fontWeight:600, color:'var(--text-muted)', display:'block', marginBottom:6 }}>{label}</label>
-                <input type={type} className="form-input" placeholder={ph} value={form[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} style={{ width:'100%' }} />
+                <input type={type} className="form-input" placeholder={ph} value={form[key]||''} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} style={{ width:'100%' }} />
               </div>
             ))}
             {formErr && <div style={{ color:'#fca5a5', fontSize:13, marginBottom:12 }}>⚠ {formErr}</div>}
             <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:8 }}>
-              <button onClick={handleAddMentor} disabled={saving} style={{ padding:'10px 24px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'white', fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-                {saving ? '⏳ Creating...' : 'Create Mentor'}
+              <button onClick={async () => {
+                setFormErr('');
+                if (!form.name || !form.username || !form.email || !form.password) { setFormErr('Name, username, email and password are required'); return; }
+                setSaving(true);
+                try {
+                  if (addModal === 'doctor') {
+                    const r = await createDoctor({ ...form, age: parseInt(form.age)||30, experience: parseInt(form.experience)||0, specialties: (form.specialties||'').split(',').map(s=>s.trim()).filter(Boolean) });
+                    setDoctors(d => [r.data, ...d]);
+                  } else {
+                    const r = await createMentor({ ...form, age: parseInt(form.age)||25, specialties: (form.specialties||'').split(',').map(s=>s.trim()).filter(Boolean) });
+                    setMentors(m => [r.data, ...m]);
+                  }
+                  setAddModal(false);
+                  setForm({ name:'', username:'', email:'', password:'', age:'', specialties:'', bio:'' });
+                } catch (e) { setFormErr(e.response?.data?.message || 'Failed to create'); }
+                finally { setSaving(false); }
+              }} disabled={saving} style={{ padding:'10px 24px', borderRadius:10, border:'none', background: addModal==='doctor' ? 'linear-gradient(135deg,#f43f5e,#e11d48)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'white', fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                {saving ? '⏳ Creating...' : addModal==='doctor' ? 'Add Doctor' : 'Create Mentor'}
               </button>
               <button onClick={() => setAddModal(false)} style={{ padding:'10px 20px', borderRadius:10, border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text)', cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
             </div>

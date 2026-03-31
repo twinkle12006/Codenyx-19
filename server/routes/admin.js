@@ -177,3 +177,50 @@ router.delete('/vents/:id', guard, async (req, res) => {
 });
 
 module.exports = router;
+
+// ── DOCTOR MANAGEMENT ────────────────────────────────────────────────────────
+
+router.get('/doctors', guard, async (req, res) => {
+  try {
+    const doctors = await User.find({ role: 'doctor' }).select('-password').sort({ createdAt: -1 });
+    res.json(doctors);
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+router.post('/doctors', guard, async (req, res) => {
+  try {
+    const { name, username, email, password, age, specialties, bio, experience, qualification, zoomLink } = req.body;
+    if (!name || !username || !email || !password) return res.status(400).json({ message: 'Name, username, email and password are required' });
+    if (!/^[a-z0-9_]{3,20}$/.test(username.toLowerCase())) return res.status(400).json({ message: 'Invalid username format' });
+    if (await User.findOne({ username: username.toLowerCase() })) return res.status(409).json({ message: 'Username already taken' });
+    if (await User.findOne({ email })) return res.status(409).json({ message: 'Email already registered' });
+    const doctor = await User.create({
+      name, username: username.toLowerCase(), email, password,
+      age: age || 30, role: 'doctor',
+      specialties: specialties || [], bio: bio || '',
+      experience: experience || 0, qualification: qualification || '',
+      zoomLink: zoomLink || '',
+      status: 'available', casesResolved: 0, activeCases: 0, rating: 5.0,
+    });
+    const d = doctor.toObject(); delete d.password;
+    res.status(201).json(d);
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+router.patch('/doctors/:id', guard, async (req, res) => {
+  try {
+    const allowed = ['name', 'specialties', 'bio', 'status', 'isActive', 'experience', 'qualification', 'zoomLink', 'casesResolved', 'activeCases'];
+    const update = {};
+    allowed.forEach(k => { if (req.body[k] !== undefined) update[k] = req.body[k]; });
+    const doctor = await User.findOneAndUpdate({ _id: req.params.id, role: 'doctor' }, update, { new: true }).select('-password');
+    if (!doctor) return res.status(404).json({ message: 'Doctor not found' });
+    res.json(doctor);
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+router.delete('/doctors/:id', guard, async (req, res) => {
+  try {
+    await User.findOneAndDelete({ _id: req.params.id, role: 'doctor' });
+    res.json({ message: 'Doctor removed' });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
