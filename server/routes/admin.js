@@ -3,6 +3,7 @@ const User = require('../models/User');
 const Vent = require('../models/Vent');
 const MoodLog = require('../models/MoodLog');
 const ChatSession = require('../models/ChatSession');
+const ModerationLog = require('../models/ModerationLog');
 const authMiddleware = require('../middleware/auth');
 const adminMiddleware = require('../middleware/admin');
 const bcrypt = require('bcryptjs');
@@ -177,6 +178,14 @@ router.delete('/vents/:id', guard, async (req, res) => {
 });
 
 module.exports = router;
+
+// ── MODERATION LOGS ──────────────────────────────────────────────────────────
+router.get('/moderation', guard, async (req, res) => {
+  try {
+    const logs = await ModerationLog.find().sort({ createdAt: -1 }).limit(100);
+    res.json(logs);
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
 
 // ── DOCTOR MANAGEMENT ────────────────────────────────────────────────────────
 

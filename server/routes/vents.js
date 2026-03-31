@@ -1,7 +1,9 @@
 const router = require('express').Router();
 const Vent   = require('../models/Vent');
 const User   = require('../models/User');
+const ModerationLog = require('../models/ModerationLog');
 const authMiddleware = require('../middleware/auth');
+const { analyzeComment } = require('../utils/abuseFilter');
 
 function serialize(vent) {
   const obj = vent.toObject({ virtuals: false });
@@ -90,9 +92,48 @@ router.post('/:id/comment', authMiddleware, async (req, res) => {
     const { text } = req.body;
     if (!text?.trim()) return res.status(400).json({ message: 'Comment text required' });
 
-    const user   = await User.findById(req.user.id).select('name role');
-    const vent   = await Vent.findById(req.params.id);
+    const user = await User.findById(req.user.id).select('name role username');
+    const vent = await Vent.findById(req.params.id);
     if (!vent) return res.status(404).json({ message: 'Not found' });
+
+    // ── Abuse detection ──────────────────────────────────────────────────────
+    const { flagged, score, reason } = analyzeComment(text.trim());
+
+    if (flagged) {
+      // Log the moderation event
+      await ModerationLog.create({
+        userId:   req.user.id,
+        username: user.username,
+        ventId:   vent._id,
+        text:     text.trim(),
+        score,
+        reason,
+      });
+
+      // Push real-time alert to admin via Socket.io
+      const io = req.app.get('io');
+      if (io) {
+        io.emit('admin_abuse_alert', {
+          userId:   req.user.id,
+          username: user.username,
+          name:     user.name,
+          ventId:   vent._id,
+          text:     text.trim(),
+          score,
+          reason,
+          time:     new Date().toISOString(),
+        });
+      }
+
+      console.warn(`[MODERATION] Abusive comment blocked from @${user.username}. Score: ${score}, Reason: ${reason}`);
+
+      return res.status(403).json({
+        success: false,
+        flagged: true,
+        message: 'Your comment was flagged as abusive and has been blocked. This incident has been reported to the admin.',
+      });
+    }
+    // ── End abuse detection ──────────────────────────────────────────────────
 
     const isMentor = user.role === 'mentor';
     vent.comments.push({

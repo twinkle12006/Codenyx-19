@@ -152,6 +152,7 @@ export default function VentSection({ navTo }) {
   const [distressBanner, setDistressBanner] = useState(false);
   const [submitting, setSubmitting]     = useState(false);
   const [newVentBanner, setNewVentBanner] = useState(false);
+  const [suspendedModal, setSuspendedModal] = useState(false);
   const latestIdRef = useRef(null);
 
   const fetchVents = useCallback(async (silent = false) => {
@@ -199,7 +200,17 @@ export default function VentSection({ navTo }) {
 
   const handleLike    = async (id) => { try { const r = await likeVent(id);    setVents(v => v.map(x => x._id === id ? r.data : x)); } catch {} };
   const handleDislike = async (id) => { try { const r = await dislikeVent(id); setVents(v => v.map(x => x._id === id ? r.data : x)); } catch {} };
-  const handleComment = async (id, text) => { try { const r = await commentVent(id, text); setVents(v => v.map(x => x._id === id ? r.data : x)); } catch {} };
+  const handleComment = async (id, text) => {
+    try {
+      const r = await commentVent(id, text);
+      setVents(v => v.map(x => x._id === id ? r.data : x));
+    } catch (err) {
+      const data = err.response?.data;
+      if (data?.flagged) {
+        setSuspendedModal(true);
+      }
+    }
+  };
   const handleDeleteComment = async (vid, cid) => { try { const r = await deleteComment(vid, cid); setVents(v => v.map(x => x._id === vid ? r.data : x)); } catch {} };
   const handleLikeComment    = async (vid, cid) => { try { const r = await likeComment(vid, cid);    setVents(v => v.map(x => x._id === vid ? r.data : x)); } catch {} };
   const handleDislikeComment = async (vid, cid) => { try { const r = await dislikeComment(vid, cid); setVents(v => v.map(x => x._id === vid ? r.data : x)); } catch {} };
@@ -309,6 +320,25 @@ export default function VentSection({ navTo }) {
                 {submitting ? '⏳ Posting...' : 'Post Anonymously'}
               </button>
               <button className="btn btn-ghost" onClick={() => setModalOpen(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Abuse warning modal */}
+      {suspendedModal && (
+        <div className="modal-overlay">
+          <div className="modal-box" style={{ maxWidth: 420, textAlign: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>⚠️</div>
+            <h3 className="modal-title" style={{ color: '#fcd34d' }}>Comment Blocked</h3>
+            <div className="modal-body">
+              <p style={{ fontSize: 14, lineHeight: 1.7, color: 'var(--text-muted)' }}>
+                Your comment was detected as abusive and has been blocked.<br /><br />
+                This incident has been <strong style={{ color: '#fca5a5' }}>reported to the admin</strong> for review.<br /><br />
+                Repeated violations may result in your account being deactivated.
+              </p>
+            </div>
+            <div className="modal-footer" style={{ justifyContent: 'center' }}>
+              <button className="btn btn-ghost" onClick={() => setSuspendedModal(false)}>I understand</button>
             </div>
           </div>
         </div>

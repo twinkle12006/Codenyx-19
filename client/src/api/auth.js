@@ -53,6 +53,7 @@ export const getAdminUsers   = ()          => API.get('/admin/users');
 export const updateUser      = (id, data)  => API.patch(`/admin/users/${id}`, data);
 export const getAdminVents   = ()          => API.get('/admin/vents');
 export const deleteVent      = (id)        => API.delete(`/admin/vents/${id}`);
+export const getAdminModeration = ()       => API.get('/admin/moderation');
 
 // Doctor
 export const getDoctorMe         = ()        => API.get('/doctor/me');

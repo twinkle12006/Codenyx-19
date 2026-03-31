@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
 import {
   getAdminStats, getAdminMentors, createMentor, updateMentor, deleteMentor,
   getAdminUsers, updateUser, getAdminVents, deleteVent,
   getAdminDoctors, createDoctor, updateDoctor, deleteDoctor,
+  getAdminModeration,
 } from '../api/auth';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -29,17 +31,41 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
+  const { socket }       = useSocket();
   const [tab, setTab]       = useState('overview');
   const [stats, setStats]   = useState(null);
   const [mentors, setMentors] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [users, setUsers]   = useState([]);
   const [vents, setVents]   = useState([]);
+  const [modLogs, setModLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [addModal, setAddModal] = useState(false); // false | 'mentor' | 'doctor'
+  const [addModal, setAddModal] = useState(false);
   const [form, setForm] = useState({ name:'', username:'', email:'', password:'', age:'', specialties:'', bio:'' });
   const [formErr, setFormErr] = useState('');
   const [saving, setSaving] = useState(false);
+  const [abuseAlerts, setAbuseAlerts] = useState([]);
+
+  // Real-time abuse alerts via socket
+  useEffect(() => {
+    if (!socket) return;
+    const onAlert = (alert) => {
+      setAbuseAlerts(prev => [alert, ...prev.slice(0, 19)]);
+      // Also prepend to modLogs for immediate visibility
+      setModLogs(prev => [{
+        _id: Date.now(),
+        userId: alert.userId,
+        username: alert.username,
+        text: alert.text,
+        score: alert.score,
+        reason: alert.reason,
+        createdAt: alert.time,
+        live: true,
+      }, ...prev]);
+    };
+    socket.on('admin_abuse_alert', onAlert);
+    return () => socket.off('admin_abuse_alert', onAlert);
+  }, [socket]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -47,6 +73,7 @@ export default function AdminDashboard() {
       const [s, m, u, v] = await Promise.all([getAdminStats(), getAdminMentors(), getAdminUsers(), getAdminVents()]);
       setStats(s.data); setMentors(m.data); setUsers(u.data); setVents(v.data);
       try { const d = await getAdminDoctors(); setDoctors(d.data); } catch {}
+      try { const ml = await getAdminModeration(); setModLogs(ml.data); } catch {}
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, []);
@@ -95,7 +122,7 @@ export default function AdminDashboard() {
           <span style={{ fontSize:11, padding:'3px 10px', borderRadius:20, background:'rgba(244,63,94,0.15)', border:'1px solid rgba(244,63,94,0.3)', color:'#fca5a5', fontWeight:700, marginLeft:4 }}>NGO ADMIN</span>
         </div>
         <div style={{ display:'flex', gap:4, marginLeft:32 }}>
-          {[['overview','📊 Overview'],['analytics','📈 Analytics'],['mentors','🤝 Staff'],['doctors','🏥 Doctors'],['users','👥 Users'],['vents','🌊 Vents']].map(([key, label]) => (
+          {[['overview','📊 Overview'],['analytics','📈 Analytics'],['mentors','🤝 Staff'],['doctors','🏥 Doctors'],['users','👥 Users'],['vents','🌊 Vents'],['moderation','🛡️ Moderation']].map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)} style={{ padding:'7px 16px', borderRadius:10, border:'none', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight:600, background: tab===key ? 'rgba(99,102,241,0.2)' : 'transparent', color: tab===key ? '#a5b4fc' : 'var(--text-muted)' }}>
               {label}
             </button>
@@ -108,6 +135,23 @@ export default function AdminDashboard() {
       </div>
 
       <div style={{ padding:'32px 40px', maxWidth:1300, margin:'0 auto' }}>
+
+        {/* Live abuse alert banner */}
+        {abuseAlerts.length > 0 && (
+          <div style={{ display:'flex', alignItems:'center', gap:14, padding:'14px 20px', marginBottom:20, background:'rgba(244,63,94,0.1)', border:'1px solid rgba(244,63,94,0.4)', borderRadius:12, animation:'pulse 2s infinite' }}>
+            <span style={{ fontSize:22 }}>🚨</span>
+            <div style={{ flex:1 }}>
+              <div style={{ fontWeight:700, fontSize:14, color:'#fca5a5' }}>Abuse Alert — Action Required</div>
+              <div style={{ fontSize:13, color:'var(--text-muted)', marginTop:2 }}>
+                @{abuseAlerts[0].username} posted an abusive comment (toxicity: {(abuseAlerts[0].score * 100).toFixed(0)}%). {abuseAlerts.length > 1 ? `+${abuseAlerts.length - 1} more alerts.` : ''}
+              </div>
+            </div>
+            <button onClick={() => setTab('moderation')} style={{ padding:'7px 16px', borderRadius:8, border:'1px solid rgba(244,63,94,0.4)', background:'rgba(244,63,94,0.15)', color:'#fca5a5', cursor:'pointer', fontSize:13, fontFamily:'inherit', fontWeight:600 }}>
+              Review Now →
+            </button>
+            <button onClick={() => setAbuseAlerts([])} style={{ background:'none', border:'none', color:'var(--text-dim)', cursor:'pointer', fontSize:20 }}>×</button>
+          </div>
+        )}
 
         {/* ── OVERVIEW ── */}
         {tab === 'overview' && (
@@ -513,6 +557,73 @@ export default function AdminDashboard() {
             )}
           </div>
         )}
+        {/* ── MODERATION ── */}
+        {tab === 'moderation' && (
+          <div>
+            <h2 style={{ fontSize:26, fontWeight:800, marginBottom:6 }}>🛡️ Moderation Log</h2>
+            <p style={{ fontSize:13, color:'var(--text-muted)', marginBottom:24 }}>
+              {modLogs.length} flagged events · {users.filter(u => u.isActive===false).length} suspended users
+            </p>
+            {users.filter(u => u.isActive===false).length > 0 && (
+              <div style={{ ...card, marginBottom:20, borderColor:'rgba(245,158,11,0.3)', background:'rgba(245,158,11,0.04)' }}>
+                <div style={{ fontWeight:700, fontSize:15, marginBottom:12, color:'#fcd34d' }}>⚠️ Suspended Users</div>
+                {users.filter(u => u.isActive===false).map(u => (
+                  <div key={u._id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom:'1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ width:32, height:32, borderRadius:'50%', background:'rgba(245,158,11,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, color:'#fcd34d' }}>{u.name.charAt(0)}</div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontWeight:600, fontSize:14 }}>{u.name} <span style={{ fontSize:12, color:'var(--text-dim)' }}>@{u.username}</span></div>
+                      <div style={{ fontSize:12, color:'#fca5a5' }}>Suspended · Account inactive</div>
+                    </div>
+                    <button onClick={() => toggleUserActive(u)} style={{ padding:'6px 14px', borderRadius:8, border:'1px solid rgba(34,197,94,0.3)', background:'rgba(34,197,94,0.1)', color:'#86efac', cursor:'pointer', fontSize:12, fontFamily:'inherit' }}>Reactivate</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={card}>
+              <div style={{ fontWeight:700, fontSize:15, marginBottom:16 }}>📋 Flagged Comments — Action Required</div>
+              {modLogs.length === 0 ? (
+                <div style={{ color:'var(--text-muted)', fontSize:14 }}>No moderation events yet. The community is clean! 🌱</div>
+              ) : modLogs.map((log, idx) => {
+                const flaggedUser = users.find(u => u._id === log.userId?.toString() || u.username === log.username);
+                const isDeactivated = flaggedUser?.isActive === false;
+                return (
+                  <div key={log._id || idx} style={{ padding:'16px 0', borderBottom:'1px solid var(--border)', display:'flex', gap:14, alignItems:'flex-start' }}>
+                    <div style={{ width:40, height:40, borderRadius:'50%', background: log.live ? 'rgba(244,63,94,0.3)' : 'rgba(244,63,94,0.12)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0, boxShadow: log.live ? '0 0 12px rgba(244,63,94,0.5)' : 'none' }}>🚫</div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:6, flexWrap:'wrap' }}>
+                        {log.live && <span style={{ fontSize:10, padding:'2px 7px', borderRadius:20, background:'rgba(244,63,94,0.3)', color:'#fca5a5', fontWeight:700, animation:'pulse 1s infinite' }}>● LIVE</span>}
+                        <span style={{ fontWeight:700, fontSize:14 }}>@{log.username || 'unknown'}</span>
+                        <span style={{ fontSize:11, padding:'2px 8px', borderRadius:20, background:'rgba(244,63,94,0.15)', color:'#fca5a5', fontWeight:600 }}>{log.reason}</span>
+                        <span style={{ fontSize:11, padding:'2px 8px', borderRadius:20, background:'rgba(245,158,11,0.15)', color:'#fcd34d' }}>toxicity: {(log.score * 100).toFixed(0)}%</span>
+                        <span style={{ fontSize:11, color:'var(--text-dim)', marginLeft:'auto' }}>{new Date(log.createdAt).toLocaleString()}</span>
+                      </div>
+                      <div style={{ fontSize:13, color:'var(--text-muted)', background:'rgba(244,63,94,0.05)', padding:'10px 14px', borderRadius:8, border:'1px solid rgba(244,63,94,0.15)', fontStyle:'italic', marginBottom:10 }}>
+                        "{log.text?.slice(0, 300)}{log.text?.length > 300 ? '...' : ''}"
+                      </div>
+                      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                        {isDeactivated ? (
+                          <span style={{ fontSize:12, padding:'4px 12px', borderRadius:20, background:'rgba(245,158,11,0.1)', color:'#fcd34d', border:'1px solid rgba(245,158,11,0.3)' }}>⚠️ Account already deactivated</span>
+                        ) : flaggedUser ? (
+                          <button onClick={async () => {
+                            try {
+                              const r = await updateUser(flaggedUser._id, { isActive: false });
+                              setUsers(us => us.map(x => x._id === flaggedUser._id ? r.data : x));
+                            } catch {}
+                          }} style={{ padding:'6px 16px', borderRadius:8, border:'1px solid rgba(244,63,94,0.4)', background:'rgba(244,63,94,0.12)', color:'#fca5a5', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:600 }}>
+                            🚫 Deactivate @{log.username}
+                          </button>
+                        ) : (
+                          <span style={{ fontSize:12, color:'var(--text-dim)' }}>User not found in current list</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
       </div>
 
       {/* Add Mentor Modal */}
