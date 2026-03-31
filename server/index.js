@@ -11,11 +11,16 @@ const User        = require('./models/User');
 
 const app    = express();
 const server = http.createServer(app);
+
+const allowedOrigins = process.env.CLIENT_URL
+  ? [process.env.CLIENT_URL, 'http://localhost:3000']
+  : ['http://localhost:3000'];
+
 const io     = new Server(server, {
-  cors: { origin: 'http://localhost:3000', methods: ['GET', 'POST'] },
+  cors: { origin: allowedOrigins, methods: ['GET', 'POST'] },
 });
 
-app.use(cors({ origin: 'http://localhost:3000' }));
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
 // ── REST routes ──────────────────────────────────────────────────────────────
