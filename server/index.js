@@ -3,7 +3,6 @@ const express    = require('express');
 const http       = require('http');
 const { Server } = require('socket.io');
 const mongoose   = require('mongoose');
-const cors       = require('cors');
 const jwt        = require('jsonwebtoken');
 const ChatMessage = require('./models/ChatMessage');
 const ChatSession = require('./models/ChatSession');
@@ -12,15 +11,27 @@ const User        = require('./models/User');
 const app    = express();
 const server = http.createServer(app);
 
+const cors = require("cors");
+
 const allowedOrigins = process.env.CLIENT_URL
-  ? [process.env.CLIENT_URL, 'http://localhost:3000']
-  : ['http://localhost:3000'];
+  ? [process.env.CLIENT_URL, "http://localhost:3000"]
+  : ["http://localhost:3000"];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("CORS not allowed"));
+    }
+  },
+  credentials: true
+}));
 
 const io     = new Server(server, {
   cors: { origin: allowedOrigins, methods: ['GET', 'POST'] },
 });
 
-app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
 // ── REST routes ──────────────────────────────────────────────────────────────
@@ -37,6 +48,10 @@ app.use('/api/mentor',     require('./routes/mentor'));
 app.use('/api/doctor',     require('./routes/doctor'));
 app.use('/api/chat',       require('./routes/chat'));
 app.use('/api/reviews',    require('./routes/reviews'));
+
+app.get("/", (req, res) => {
+  res.send("Backend is running 🚀");
+});
 
 // ── Socket.io ────────────────────────────────────────────────────────────────
 // Authenticate socket connections via JWT — anonymous (no token) allowed for SOS
