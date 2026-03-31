@@ -24,8 +24,7 @@ export default function Dashboard() {
   const [notifications, setNotifications] = useState([
     { id: 1, icon: '💜', message: `Welcome back, ${user?.name?.split(' ')[0]}!`, time: 'just now' },
   ]);
-  const [stats, setStats]         = useState({ users: 0, volunteers: 0, slots: 0, ventsToday: 0 });
-  const [tickerMsgs, setTickerMsgs] = useState(['💜 Sahara is live — you are not alone']);
+  const [stats, setStats] = useState({ users: 0, volunteers: 0, slots: 0, ventsToday: 0 });
 
   const navTo = (s) => {
     navigate(`/${s}`);
@@ -41,15 +40,6 @@ export default function Dashboard() {
         const res = await getStats();
         const s = res.data;
         setStats(s);
-        setTickerMsgs([
-          `👥 ${s.users} registered users on Sahara`,
-          `🤝 ${s.volunteers} volunteers available right now`,
-          `🏥 ${s.slots} emergency clinic slots open`,
-          `💬 ${s.ventsToday} posts in the community today`,
-          `💜 You are not alone — the community is here`,
-          `🌱 Every step forward counts, no matter how small`,
-          `🆘 Crisis support available 24/7 — tap SOS anytime`,
-        ]);
         if (s.ventsToday > 0) {
           setNotifications(n => {
             const exists = n.find(x => x.icon === '💬');

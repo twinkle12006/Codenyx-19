@@ -80,18 +80,6 @@ export default function AdminDashboard() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleAddMentor = async () => {
-    setFormErr('');
-    if (!form.name || !form.username || !form.email || !form.password) { setFormErr('Name, username, email and password are required'); return; }
-    setSaving(true);
-    try {
-      const res = await createMentor({ ...form, age: parseInt(form.age) || 25, specialties: form.specialties.split(',').map(s => s.trim()).filter(Boolean) });
-      setMentors(m => [res.data, ...m]);
-      setAddModal(false);
-      setForm({ name:'', username:'', email:'', password:'', age:'', specialties:'', bio:'' });
-    } catch (e) { setFormErr(e.response?.data?.message || 'Failed to create mentor'); }
-    finally { setSaving(false); }
-  }; 
   const toggleMentorStatus = async (mentor) => {
     try { const r = await updateMentor(mentor._id, { status: mentor.status === 'available' ? 'away' : 'available' }); setMentors(m => m.map(x => x._id === mentor._id ? r.data : x)); } catch {}
   };
